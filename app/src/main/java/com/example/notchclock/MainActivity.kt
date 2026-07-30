@@ -16,17 +16,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-        } else {
-            startClockService()
-        }
-
-        // Layout con i cursori di regolazione
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(50, 100, 50, 50)
@@ -48,7 +37,7 @@ class MainActivity : AppCompatActivity() {
             progress = prefs.getInt("offset_y", 0) + 200
         }
 
-        // Slider Dimensione
+        // Slider Dimensioni
         val labelSize = TextView(this).apply { text = "Dimensione Orologio" }
         val seekSize = SeekBar(this).apply {
             max = 200
@@ -72,7 +61,11 @@ class MainActivity : AppCompatActivity() {
                     putExtra("offset_y", y)
                     putExtra("clock_size", size)
                 }
-                startService(updateIntent)
+                try {
+                    startService(updateIntent)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -93,12 +86,33 @@ class MainActivity : AppCompatActivity() {
         setContentView(layout)
     }
 
+    override fun onResume() {
+        super.onResume()
+        checkOverlayPermissionAndStart()
+    }
+
+    private fun checkOverlayPermissionAndStart() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
+        } else {
+            startClockService()
+        }
+    }
+
     private fun startClockService() {
         val intent = Intent(this, ClockService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
