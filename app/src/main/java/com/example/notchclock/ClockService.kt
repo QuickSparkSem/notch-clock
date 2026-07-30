@@ -24,7 +24,7 @@ import java.util.Calendar
 class ClockService : Service() {
 
     private lateinit var windowManager: WindowManager
-    private lateinit var overlayView: ClockView
+    private var overlayView: ClockView? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
     private val handler = Handler(Looper.getMainLooper())
     private var isOverlayAdded = false
@@ -45,7 +45,11 @@ class ClockService : Service() {
         clockSize = prefs.getInt("clock_size", 80)
 
         createNotificationChannel()
-        startForeground(1, createNotification())
+        try {
+            startForeground(1, createNotification())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         overlayView = ClockView(this)
 
@@ -73,8 +77,9 @@ class ClockService : Service() {
     }
 
     private fun tryAddOverlay() {
-        // Tenta l'aggiunta a schermo solo se il permesso è stato accordato
-        if (!isOverlayAdded && (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))) {
+        if (!isOverlayAdded && overlayView != null &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))
+        ) {
             try {
                 windowManager.addView(overlayView, layoutParams)
                 isOverlayAdded = true
@@ -92,7 +97,7 @@ class ClockService : Service() {
 
             tryAddOverlay()
             if (isOverlayAdded) {
-                overlayView.invalidate()
+                overlayView?.invalidate()
             }
         }
         return START_STICKY
@@ -102,7 +107,7 @@ class ClockService : Service() {
         override fun run() {
             tryAddOverlay()
             if (isOverlayAdded) {
-                overlayView.invalidate()
+                overlayView?.invalidate()
             }
             handler.postDelayed(this, 1000)
         }
@@ -177,16 +182,16 @@ class ClockService : Service() {
 
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, "notch_clock_channel")
-            .setContentTitle("Notch Clock Active")
+            .setContentTitle("Notch Clock")
             .setContentText("L'orologio in overlay è attivo")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(updateClockRunnable)
-        if (isOverlayAdded && ::overlayView.isInitialized) {
+        if (isOverlayAdded && overlayView != null) {
             try {
                 windowManager.removeView(overlayView)
             } catch (e: Exception) {
