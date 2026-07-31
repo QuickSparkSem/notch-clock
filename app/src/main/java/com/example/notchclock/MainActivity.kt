@@ -6,9 +6,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -18,10 +20,41 @@ class MainActivity : AppCompatActivity() {
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(50, 100, 50, 50)
+            setPadding(50, 50, 50, 50)
         }
 
         val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
+
+        // Pulsante 1: Concedi Permesso
+        val btnPermission = Button(this).apply {
+            text = "1. Concedi Permesso Overlay"
+            setOnClickListener {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!Settings.canDrawOverlays(this@MainActivity)) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                        startActivity(intent)
+                    } else {
+                        Toast.makeText(this@MainActivity, "Permesso già concesso!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        // Pulsante 2: Avvia Servizio
+        val btnStart = Button(this).apply {
+            text = "2. Avvia Orologio"
+            setOnClickListener {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this@MainActivity)) {
+                    Toast.makeText(this@MainActivity, "Prima concedi il permesso!", Toast.LENGTH_LONG).show()
+                } else {
+                    startClockService()
+                    Toast.makeText(this@MainActivity, "Orologio Avviato!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
         // Slider X
         val labelX = TextView(this).apply { text = "Posizione X (Orizzontale)" }
@@ -37,7 +70,7 @@ class MainActivity : AppCompatActivity() {
             progress = prefs.getInt("offset_y", 0) + 200
         }
 
-        // Slider Dimensioni
+        // Slider Dimensione
         val labelSize = TextView(this).apply { text = "Dimensione Orologio" }
         val seekSize = SeekBar(this).apply {
             max = 200
@@ -76,6 +109,8 @@ class MainActivity : AppCompatActivity() {
         seekY.setOnSeekBarChangeListener(listener)
         seekSize.setOnSeekBarChangeListener(listener)
 
+        layout.addView(btnPermission)
+        layout.addView(btnStart)
         layout.addView(labelX)
         layout.addView(seekX)
         layout.addView(labelY)
@@ -84,23 +119,6 @@ class MainActivity : AppCompatActivity() {
         layout.addView(seekSize)
 
         setContentView(layout)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        checkOverlayPermissionAndStart()
-    }
-
-    private fun checkOverlayPermissionAndStart() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-        } else {
-            startClockService()
-        }
     }
 
     private fun startClockService() {
