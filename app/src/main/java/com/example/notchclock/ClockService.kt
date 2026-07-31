@@ -77,14 +77,19 @@ class ClockService : Service() {
     }
 
     private fun tryAddOverlay() {
-        if (!isOverlayAdded && overlayView != null &&
-            (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))
-        ) {
-            try {
-                windowManager.addView(overlayView, layoutParams)
-                isOverlayAdded = true
-            } catch (e: Exception) {
-                e.printStackTrace()
+        if (!isOverlayAdded && overlayView != null) {
+            val canDraw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Settings.canDrawOverlays(this)
+            } else {
+                true
+            }
+            if (canDraw) {
+                try {
+                    windowManager.addView(overlayView, layoutParams)
+                    isOverlayAdded = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
