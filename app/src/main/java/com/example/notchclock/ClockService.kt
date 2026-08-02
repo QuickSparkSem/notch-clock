@@ -26,22 +26,18 @@ class ClockService : Service() {
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (::clockView.isInitialized) {
-                clockView.invalidate()
-            }
-            handler.postDelayed(this, 1000) // Aggiorna ogni secondo
+            if (::clockView.isInitialized) clockView.invalidate()
+            handler.postDelayed(this, 1000)
         }
     }
 
     private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            updateViewParams()
-        }
+        override fun onReceive(context: Context?, intent: Intent?) = updateViewParams()
     }
 
     override fun onCreate() {
         super.onCreate()
-        startForegroundServiceNotification()
+        startForegroundNotification()
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         clockView = NotchClockView(this)
@@ -49,13 +45,15 @@ class ClockService : Service() {
         val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
         val size = prefs.getInt("size", 100)
 
+        val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            WindowManager.LayoutParams.TYPE_PHONE
+
         params = WindowManager.LayoutParams(
             size + 100,
             size + 100,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
+            overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -70,10 +68,11 @@ class ClockService : Service() {
         windowManager.addView(clockView, params)
         handler.post(updateRunnable)
 
+        val filter = IntentFilter("com.example.notchclock.UPDATE_SETTINGS")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, IntentFilter("com.example.notchclock.UPDATE_SETTINGS"), RECEIVER_NOT_EXPORTED)
+            registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(receiver, IntentFilter("com.example.notchclock.UPDATE_SETTINGS"))
+            registerReceiver(receiver, filter)
         }
     }
 
@@ -89,14 +88,10 @@ class ClockService : Service() {
         clockView.invalidate()
     }
 
-    private fun startForegroundServiceNotification() {
+    private fun startForegroundNotification() {
         val channelId = "NotchClockChannel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Notch Clock Service",
-                NotificationManager.IMPORTANCE_LOW
-            )
+            val channel = NotificationChannel(channelId, "Notch Clock Service", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
 
@@ -112,9 +107,7 @@ class ClockService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(updateRunnable)
-        try {
-            unregisterReceiver(receiver)
-        } catch (e: Exception) { }
+        runCatching { unregisterReceiver(receiver) }
         if (::clockView.isInitialized) {
             windowManager.removeView(clockView)
         }
