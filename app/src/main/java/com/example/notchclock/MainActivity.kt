@@ -49,6 +49,11 @@ class MainActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
+        // Ripristina lo stato salvato delle SeekBars
+        seekX.progress = prefs.getInt("offsetX", 0) + 100
+        seekY.progress = prefs.getInt("offsetY", 0) + 100
+        seekSize.progress = prefs.getInt("size", 100)
+
         // Switch Attivazione Servizio
         switchService.isChecked = checkOverlayPermission()
         switchService.setOnCheckedChangeListener { _, isChecked ->
@@ -74,13 +79,15 @@ class MainActivity : AppCompatActivity() {
         // Regolatori SeekBars
         val seekBarListener = object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                prefs.edit().apply {
-                    putInt("offsetX", seekX.progress - 100)
-                    putInt("offsetY", seekY.progress - 100)
-                    putInt("size", seekSize.progress)
-                    apply()
+                if (fromUser) {
+                    prefs.edit().apply {
+                        putInt("offsetX", seekX.progress - 100)
+                        putInt("offsetY", seekY.progress - 100)
+                        putInt("size", seekSize.progress)
+                        apply()
+                    }
+                    sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
                 }
-                sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
