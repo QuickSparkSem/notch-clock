@@ -2,78 +2,112 @@ package com.example.notchclock
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.SeekBar
-import androidx.appcompat.app.AlertDialog
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity() {
 
-    private val colors = arrayOf(
-        Color.WHITE, Color.BLACK, Color.RED, Color.GREEN, Color.BLUE,
-        Color.YELLOW, Color.CYAN, Color.MAGENTA, Color.GRAY, Color.parseColor("#FFA500")
-    )
-    private val colorNames = arrayOf("Bianco", "Nero", "Rosso", "Verde", "Blu", "Giallo", "Azzurro", "Fucsia", "Grigio", "Arancione")
+    private lateinit var switchService: SwitchMaterial
+    private lateinit var seekX: SeekBar
+    private lateinit var seekY: SeekBar
+    private lateinit var seekSize: SeekBar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        checkPermissionsAndStart()
+        switchService = findViewById(R.id.switchService)
+        seekX = findViewById(R.id.seekX)
+        seekY = findViewById(R.id.seekY)
+        seekSize = findViewById(R.id.seekSize)
 
-        val prefs = getSharedPreferences("ClockPrefs", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
-        setupSeekBar(R.id.seekX, "offset_x", prefs, -300, 300)
-        setupSeekBar(R.id.seekY, "offset_y", prefs, -100, 500)
-        setupSeekBar(R.id.seekRadius, "radius", prefs, 30, 300)
+        // Imposta stato iniziale dello switch
+        switchService.isChecked = checkOverlayPermission()
 
-        findViewById<Button>(R.id.btnColorHour).setOnClickListener { showColorPicker("color_hour", prefs) }
-        findViewById<Button>(R.id.btnColorMin).setOnClickListener { showColorPicker("color_minute", prefs) }
-        findViewById<Button>(R.id.btnColorTicks).setOnClickListener { showColorPicker("color_ticks", prefs) }
-    }
-
-    private fun setupSeekBar(id: Int, key: String, prefs: android.content.SharedPreferences, min: Int, max: Int) {
-        val seekBar = findViewById<SeekBar>(id)
-        seekBar.max = max - min
-        seekBar.progress = prefs.getInt(key, if (key == "radius") 100 else 0) - min
-
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                prefs.edit().putInt(key, progress + min).apply()
+        // Listener dello Switch ON/OFF
+        switchService.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                if (checkOverlayPermission()) {
+                    startNotchService()
+                } else {
+                    switchService.isChecked = false
+                    requestOverlayPermission()
+                }
+            } else {
+                stopNotchService()
             }
+        }
+
+        // Listener per la calibrazione in tempo reale
+        val seekBarChangeListener = object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                prefs.edit().apply {
+                    putInt("offsetX", seekX.progress - 100)
+                    putInt("offsetY", seekY.progress - 100)
+                    putInt("size", seekSize.progress)
+                    apply()
+                }
+                
+                // Invia broadcast per aggiornare l'overlay al volo
+                val intent = Intent("com.example.notchclock.UPDATE_SETTINGS")
+                sendBroadcast(intent)
+            }
+
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-    }
-
-    private fun showColorPicker(prefKey: String, prefs: android.content.SharedPreferences) {
-        AlertDialog.Builder(this)
-            .setTitle("Scegli Colore")
-            .setItems(colorNames) { _, which ->
-                prefs.edit().putInt(prefKey, colors[which]).apply()
-            }
-            .show()
-    }
-
-    private fun checkPermissionsAndStart() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
         }
-        if (!Settings.canDrawOverlays(this)) {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            startActivity(intent)
+
+        seekX.setOnSeekBarChangeListener(seekBarChangeListener)
+        seekY.setOnSeekBarChangeListener(seekBarChangeListener)
+        seekSize.setOnSeekBarChangeListener(seekBarChangeListener)
+    }
+
+    private fun checkOverlayPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(this)
         } else {
-            val intent = Intent(this, ClockService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
+            true
+        }
+    }
+
+    private fun requestOverlayPermission() {
+        Toast.makeText(this, "Attiva l'autorizzazione 'Visualizzazione sopra altre app'", Toast.LENGTH_LONG).show()
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
+        startActivity(intent)
+    }
+
+    private fun startNotchService() {
+        val intent = Intent(this, NotchService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun stopNotchService() {
+        val intent = Intent(this, NotchService::class.java)
+        stopService(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Se l'utente torna dalle impostazioni dopo aver dato il permesso, accendi lo switch
+        if (checkOverlayPermission() && !switchService.isChecked) {
+            switchService.isChecked = true
+            startNotchService()
         }
     }
 }
