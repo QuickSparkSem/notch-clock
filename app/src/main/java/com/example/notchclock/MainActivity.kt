@@ -21,6 +21,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var seekY: SeekBar
     private lateinit var seekSize: SeekBar
 
+    // Elenco colori ordinato alfabeticamente
+    private val colorList = listOf(
+        "Arancione" to Color.rgb(255, 165, 0),
+        "Bianco" to Color.WHITE,
+        "Blu" to Color.BLUE,
+        "Ciano" to Color.CYAN,
+        "Giallo" to Color.YELLOW,
+        "Grigio" to Color.GRAY,
+        "Magenta" to Color.MAGENTA,
+        "Nero" to Color.BLACK,
+        "Rosa" to Color.rgb(255, 192, 203),
+        "Rosso" to Color.RED,
+        "Verde" to Color.GREEN,
+        "Viola" to Color.rgb(128, 0, 128)
+    ).sortedBy { it.first }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -30,29 +46,25 @@ class MainActivity : AppCompatActivity() {
         seekY = findViewById(R.id.seekY)
         seekSize = findViewById(R.id.seekSize)
 
-        val btnColorHour: Button = findViewById(R.id.btnColorHour)
-        val btnColorMinute: Button = findViewById(R.id.btnColorMinute)
-        val btnColorSecond: Button = findViewById(R.id.btnColorSecond)
-        val btnColorTicks: Button = findViewById(R.id.btnColorTicks)
-
         val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
+        // Switch ON / OFF
         switchService.isChecked = checkOverlayPermission()
-
         switchService.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 if (checkOverlayPermission()) {
-                    startClockService()
+                    toggleClockService(true)
                 } else {
                     switchService.isChecked = false
                     requestOverlayPermission()
                 }
             } else {
-                stopClockService()
+                toggleClockService(false)
             }
         }
 
-        val seekBarChangeListener = object : SeekBar.OnSeekBarChangeListener {
+        // Listener SeekBar unico
+        val seekBarListener = object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 prefs.edit().apply {
                     putInt("offsetX", seekX.progress - 100)
@@ -62,69 +74,55 @@ class MainActivity : AppCompatActivity() {
                 }
                 sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
             }
-
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         }
 
-        seekX.setOnSeekBarChangeListener(seekBarChangeListener)
-        seekY.setOnSeekBarChangeListener(seekBarChangeListener)
-        seekSize.setOnSeekBarChangeListener(seekBarChangeListener)
+        seekX.setOnSeekBarChangeListener(seekBarListener)
+        seekY.setOnSeekBarChangeListener(seekBarListener)
+        seekSize.setOnSeekBarChangeListener(seekBarListener)
 
-        btnColorHour.setOnClickListener { showColorPicker("colorHour", Color.RED) }
-        btnColorMinute.setOnClickListener { showColorPicker("colorMinute", Color.GREEN) }
-        btnColorSecond.setOnClickListener { showColorPicker("colorSecond", Color.CYAN) }
-        btnColorTicks.setOnClickListener { showColorPicker("colorTicks", Color.WHITE) }
+        // Listener Pulsanti Colore
+        findViewById<Button>(R.id.btnColorHour).setOnClickListener { showColorPicker("colorHour") }
+        findViewById<Button>(R.id.btnColorMinute).setOnClickListener { showColorPicker("colorMinute") }
+        findViewById<Button>(R.id.btnColorSecond).setOnClickListener { showColorPicker("colorSecond") }
+        findViewById<Button>(R.id.btnColorTicks).setOnClickListener { showColorPicker("colorTicks") }
     }
 
-    private fun showColorPicker(key: String, defaultColor: Int) {
-        val colors = arrayOf("Rosso", "Verde", "Blu", "Ciano", "Giallo", "Magenta", "Bianco")
-        val colorValues = intArrayOf(
-            Color.RED, Color.GREEN, Color.BLUE,
-            Color.CYAN, Color.YELLOW, Color.MAGENTA, Color.WHITE
-        )
-
+    private fun showColorPicker(key: String) {
+        val names = colorList.map { it.first }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("Scegli Colore")
-            .setItems(colors) { _, which ->
+            .setItems(names) { _, which ->
                 getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
-                    .edit().putInt(key, colorValues[which]).apply()
+                    .edit().putInt(key, colorList[which].second).apply()
                 sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
             }
             .show()
     }
 
-    private fun checkOverlayPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(this)
-        } else {
-            true
-        }
-    }
+    private fun checkOverlayPermission(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this) else true
 
     private fun requestOverlayPermission() {
         Toast.makeText(this, "Attiva il permesso 'Visualizzazione sopra altre app'", Toast.LENGTH_LONG).show()
         startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
     }
 
-    private fun startClockService() {
+    private fun toggleClockService(start: Boolean) {
         val intent = Intent(this, ClockService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
+        if (start) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
         } else {
-            startService(intent)
+            stopService(intent)
         }
-    }
-
-    private fun stopClockService() {
-        stopService(Intent(this, ClockService::class.java))
     }
 
     override fun onResume() {
         super.onResume()
         if (checkOverlayPermission() && !switchService.isChecked) {
             switchService.isChecked = true
-            startClockService()
+            toggleClockService(true)
         }
     }
 }
