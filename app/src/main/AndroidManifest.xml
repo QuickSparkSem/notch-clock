@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.notchclock">
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -7,8 +9,9 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@android:drawable/ic_menu_compass"
+        android:icon="@mipmap/ic_launcher"
         android:label="Notch Clock"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
 
@@ -23,8 +26,15 @@
 
         <service
             android:name=".ClockService"
+            android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse"
+            tools:property="specialUseProperty">
+            <property
+                android:name="android.app.property.SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Overlays system clock widget" />
+        </service>
 
     </application>
+
 </manifest>
