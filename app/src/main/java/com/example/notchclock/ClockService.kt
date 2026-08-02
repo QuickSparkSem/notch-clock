@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -26,13 +27,17 @@ class ClockService : Service() {
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (::clockView.isInitialized) clockView.invalidate()
+            if (::clockView.isInitialized) {
+                clockView.invalidate()
+            }
             handler.postDelayed(this, 1000)
         }
     }
 
     private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) = updateViewParams()
+        override fun onReceive(context: Context?, intent: Intent?) {
+            updateViewParams()
+        }
     }
 
     override fun onCreate() {
@@ -63,7 +68,7 @@ class ClockService : Service() {
             x = prefs.getInt("offsetX", 0)
             y = prefs.getInt("offsetY", 0)
 
-            // Gestione corretta per estendere l'overlay nella zona Notch (Android 9+)
+            // Cutout / Notch Layout Mode (API 28+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -88,24 +93,35 @@ class ClockService : Service() {
         params.x = prefs.getInt("offsetX", 0)
         params.y = prefs.getInt("offsetY", 0)
 
-        windowManager.updateViewLayout(clockView, params)
-        clockView.invalidate()
+        if (::clockView.isInitialized) {
+            clockView.reloadPreferences()
+            windowManager.updateViewLayout(clockView, params)
+        }
     }
 
     private fun startForegroundNotification() {
         val channelId = "NotchClockChannel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Notch Clock Service", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(
+                channelId,
+                "Notch Clock Service",
+                NotificationManager.IMPORTANCE_LOW
+            )
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
 
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Notch Clock")
-            .setContentText("Orologio attivo")
+            .setContentText("Orologio attivo sulla Notch")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setOngoing(true)
             .build()
 
-        startForeground(1, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(1, notification)
+        }
     }
 
     override fun onDestroy() {
