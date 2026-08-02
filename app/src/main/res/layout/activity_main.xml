@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Posizione Orizzontale (X)"
+        android:textStyle="bold"/>
+    <SeekBar android:id="@+id/seekX" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Posizione Verticale (Y)"
+        android:textStyle="bold"/>
+    <SeekBar android:id="@+id/seekY" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Dimensione Orologio"
+        android:textStyle="bold"/>
+    <SeekBar android:id="@+id/seekRadius" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="32dp"/>
+
+    <Button android:id="@+id/btnColorHour" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Colore Puntino Ore" />
+    <Button android:id="@+id/btnColorMin" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Colore Puntino Minuti" />
+    <Button android:id="@+id/btnColorTicks" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Colore Tacche Quadrante" />
+
+</LinearLayout>
