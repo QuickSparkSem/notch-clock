@@ -17,11 +17,11 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 class MainActivity : AppCompatActivity() {
 
     private lateinit var switchService: SwitchMaterial
+    private lateinit var switchStyle: SwitchMaterial
     private lateinit var seekX: SeekBar
     private lateinit var seekY: SeekBar
     private lateinit var seekSize: SeekBar
 
-    // Elenco colori ordinato alfabeticamente
     private val colorList = listOf(
         "Arancione" to Color.rgb(255, 165, 0),
         "Bianco" to Color.WHITE,
@@ -42,13 +42,14 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         switchService = findViewById(R.id.switchService)
+        switchStyle = findViewById(R.id.switchStyle)
         seekX = findViewById(R.id.seekX)
         seekY = findViewById(R.id.seekY)
         seekSize = findViewById(R.id.seekSize)
 
         val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
-        // Switch ON / OFF
+        // Switch Attivazione Servizio
         switchService.isChecked = checkOverlayPermission()
         switchService.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -63,7 +64,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Listener SeekBar unico
+        // Switch Cambio Stile (Puntini vs Lancette)
+        switchStyle.isChecked = prefs.getBoolean("isHandsStyle", false)
+        switchStyle.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("isHandsStyle", isChecked).apply()
+            sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
+        }
+
+        // Regolatori SeekBars
         val seekBarListener = object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 prefs.edit().apply {
@@ -82,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         seekY.setOnSeekBarChangeListener(seekBarListener)
         seekSize.setOnSeekBarChangeListener(seekBarListener)
 
-        // Listener Pulsanti Colore
+        // Selettori Colore
         findViewById<Button>(R.id.btnColorHour).setOnClickListener { showColorPicker("colorHour") }
         findViewById<Button>(R.id.btnColorMinute).setOnClickListener { showColorPicker("colorMinute") }
         findViewById<Button>(R.id.btnColorSecond).setOnClickListener { showColorPicker("colorSecond") }
