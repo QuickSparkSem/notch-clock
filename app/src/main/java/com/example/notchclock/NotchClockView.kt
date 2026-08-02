@@ -19,15 +19,29 @@ class NotchClockView @JvmOverloads constructor(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val needlePath = Path()
 
+    // Cache delle preferenze per evitare I/O dentro onDraw()
+    private var colorHour: Int = Color.RED
+    private var colorMinute: Int = Color.GREEN
+    private var colorSecond: Int = Color.CYAN
+    private var colorTicks: Int = Color.WHITE
+    private var isHandsStyle: Boolean = false
+
+    init {
+        reloadPreferences()
+    }
+
+    fun reloadPreferences() {
+        val prefs = context.getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
+        colorHour = prefs.getInt("colorHour", Color.RED)
+        colorMinute = prefs.getInt("colorMinute", Color.GREEN)
+        colorSecond = prefs.getInt("colorSecond", Color.CYAN)
+        colorTicks = prefs.getInt("colorTicks", Color.WHITE)
+        isHandsStyle = prefs.getBoolean("isHandsStyle", false)
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-
-        val prefs = context.getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
-        val colorHour = prefs.getInt("colorHour", Color.RED)
-        val colorMinute = prefs.getInt("colorMinute", Color.GREEN)
-        val colorSecond = prefs.getInt("colorSecond", Color.CYAN)
-        val colorTicks = prefs.getInt("colorTicks", Color.WHITE)
-        val isHandsStyle = prefs.getBoolean("isHandsStyle", false)
 
         val centerX = width / 2f
         val centerY = height / 2f
@@ -94,25 +108,37 @@ class NotchClockView @JvmOverloads constructor(
             canvas.restore()
 
             // Pernetto centrale
+            paint.style = Paint.Style.FILL
             paint.color = colorTicks
-            canvas.drawCircle(centerX, centerY, 4f, paint)
+            canvas.drawCircle(centerX, centerY, 5f, paint)
 
         } else {
             // --- MODALITÀ PUNTINI ---
+            paint.style = Paint.Style.FILL
 
-            fun drawDot(angle: Float, distOffset: Float, dotRadius: Float, color: Int) {
-                canvas.save()
-                canvas.translate(centerX, centerY)
-                canvas.rotate(angle)
-                paint.style = Paint.Style.FILL
-                paint.color = color
-                canvas.drawCircle(0f, -(radius - distOffset), dotRadius, paint)
-                canvas.restore()
-            }
+            // Ore
+            canvas.save()
+            canvas.translate(centerX, centerY)
+            canvas.rotate(hourAngle)
+            paint.color = colorHour
+            canvas.drawCircle(0f, -(radius - 5f), 9f, paint)
+            canvas.restore()
 
-            drawDot(hourAngle, 5f, 9f, colorHour)
-            drawDot(minuteAngle, 5f, 7f, colorMinute)
-            drawDot(secondAngle, 0f, 5f, colorSecond)
+            // Minuti
+            canvas.save()
+            canvas.translate(centerX, centerY)
+            canvas.rotate(minuteAngle)
+            paint.color = colorMinute
+            canvas.drawCircle(0f, -(radius - 5f), 7f, paint)
+            canvas.restore()
+
+            // Secondi
+            canvas.save()
+            canvas.translate(centerX, centerY)
+            canvas.rotate(secondAngle)
+            paint.color = colorSecond
+            canvas.drawCircle(0f, -radius, 5f, paint)
+            canvas.restore()
         }
     }
 }
