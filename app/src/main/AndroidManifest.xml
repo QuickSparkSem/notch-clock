@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     package="com.example.notchclock">
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="true"
@@ -27,13 +25,7 @@
         <service
             android:name=".ClockService"
             android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse"
-            tools:property="specialUseProperty">
-            <property
-                android:name="android.app.property.SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Overlays system clock widget" />
-        </service>
+            android:exported="false" />
 
     </application>
 
