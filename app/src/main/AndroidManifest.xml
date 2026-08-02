@@ -10,7 +10,7 @@
         android:allowBackup="true"
         android:label="Notch Clock"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+        android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
 
         <activity
             android:name=".MainActivity"
@@ -27,5 +27,4 @@
             android:foregroundServiceType="specialUse" />
 
     </application>
-
 </manifest>
