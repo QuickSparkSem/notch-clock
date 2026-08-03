@@ -61,15 +61,18 @@ class ClockService : Service() {
             overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, // Permette all'overlay di superare la barra di stato
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = prefs.getInt("offsetX", 0)
             y = prefs.getInt("offsetY", 0)
 
-            // Cutout / Notch Layout Mode (API 28+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // Permette di disegnare dentro il Notch/Cutout senza restrizioni
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
@@ -117,7 +120,6 @@ class ClockService : Service() {
             .setOngoing(true)
             .build()
 
-        // Risoluzione crash per Android 14+ (API 34+)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 1,
