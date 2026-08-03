@@ -6,9 +6,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
-import android.widget.SeekBar
 
 class MainActivity : AppCompatActivity() {
 
@@ -31,9 +31,9 @@ class MainActivity : AppCompatActivity() {
         seekBarX.max = 600
         seekBarX.progress = prefs.getInt("offsetX", 0) + 300
 
-        // Range Y: da -200px a +600px (valori negativi per salire sopra il bordo dello schermo)
+        // Range Y: da -300px a +500px (valori negativi per salire sopra la barra di stato / notch)
         seekBarY.max = 800
-        seekBarY.progress = prefs.getInt("offsetY", 0) + 200
+        seekBarY.progress = prefs.getInt("offsetY", 0) + 300
 
         seekBarSize.max = 200
         seekBarSize.progress = prefs.getInt("size", 100)
@@ -67,7 +67,7 @@ class MainActivity : AppCompatActivity() {
 
         seekBarY.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                val realY = progress - 200 // Permette di posizionare l'orologio più in alto
+                val realY = progress - 300 // Permette di spingere l'orologio fino in cima al notch
                 prefs.edit().putInt("offsetY", realY).apply()
                 notifyService()
             }
