@@ -1,143 +1,124 @@
 package com.example.notchclock
 
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Button
-import android.widget.SeekBar
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.switchmaterial.SwitchMaterial
+import androidx.appcompat.widget.SwitchCompat
+import android.widget.SeekBar
 
 class MainActivity : AppCompatActivity() {
-
-    private lateinit var switchService: SwitchMaterial
-    private lateinit var switchStyle: SwitchMaterial
-    private lateinit var seekX: SeekBar
-    private lateinit var seekY: SeekBar
-    private lateinit var seekSize: SeekBar
-
-    private val colorList = listOf(
-        "Arancione" to Color.rgb(255, 165, 0),
-        "Bianco" to Color.WHITE,
-        "Blu" to Color.BLUE,
-        "Ciano" to Color.CYAN,
-        "Giallo" to Color.YELLOW,
-        "Grigio" to Color.GRAY,
-        "Magenta" to Color.MAGENTA,
-        "Nero" to Color.BLACK,
-        "Rosa" to Color.rgb(255, 192, 203),
-        "Rosso" to Color.RED,
-        "Verde" to Color.GREEN,
-        "Viola" to Color.rgb(128, 0, 128)
-    ).sortedBy { it.first }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        switchService = findViewById(R.id.switchService)
-        switchStyle = findViewById(R.id.switchStyle)
-        seekX = findViewById(R.id.seekX)
-        seekY = findViewById(R.id.seekY)
-        seekSize = findViewById(R.id.seekSize)
+        val switchEnable = findViewById<SwitchCompat>(R.id.switchEnable)
+        val switchHands = findViewById<SwitchCompat>(R.id.switchHands)
+        val seekBarX = findViewById<SeekBar>(R.id.seekBarX)
+        val seekBarY = findViewById<SeekBar>(R.id.seekBarY)
+        val seekBarSize = findViewById<SeekBar>(R.id.seekBarSize)
 
         val prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
-        // Ripristina lo stato salvato delle SeekBars
-        seekX.progress = prefs.getInt("offsetX", 0) + 100
-        seekY.progress = prefs.getInt("offsetY", 0) + 100
-        seekSize.progress = prefs.getInt("size", 100)
+        switchEnable.isChecked = isOverlayPermissionGranted()
+        switchHands.isChecked = prefs.getBoolean("useHands", true)
 
-        // Switch Attivazione Servizio
-        switchService.isChecked = checkOverlayPermission()
-        switchService.setOnCheckedChangeListener { _, isChecked ->
+        // Range X: da -300px a +300px
+        seekBarX.max = 600
+        seekBarX.progress = prefs.getInt("offsetX", 0) + 300
+
+        // Range Y: da -200px a +600px (valori negativi per salire sopra il bordo dello schermo)
+        seekBarY.max = 800
+        seekBarY.progress = prefs.getInt("offsetY", 0) + 200
+
+        seekBarSize.max = 200
+        seekBarSize.progress = prefs.getInt("size", 100)
+
+        switchEnable.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 if (checkOverlayPermission()) {
-                    toggleClockService(true)
+                    startClockService()
                 } else {
-                    switchService.isChecked = false
-                    requestOverlayPermission()
+                    switchEnable.isChecked = false
                 }
             } else {
-                toggleClockService(false)
+                stopClockService()
             }
         }
 
-        // Switch Cambio Stile (Puntini vs Lancette)
-        switchStyle.isChecked = prefs.getBoolean("isHandsStyle", false)
-        switchStyle.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("isHandsStyle", isChecked).apply()
-            sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
+        switchHands.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("useHands", isChecked).apply()
+            notifyService()
         }
 
-        // Regolatori SeekBars
-        val seekBarListener = object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    prefs.edit().apply {
-                        putInt("offsetX", seekX.progress - 100)
-                        putInt("offsetY", seekY.progress - 100)
-                        putInt("size", seekSize.progress)
-                        apply()
-                    }
-                    sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
-                }
+        seekBarX.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                val realX = progress - 300
+                prefs.edit().putInt("offsetX", realX).apply()
+                notifyService()
             }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        seekBarY.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                val realY = progress - 200 // Permette di posizionare l'orologio più in alto
+                prefs.edit().putInt("offsetY", realY).apply()
+                notifyService()
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        seekBarSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                val realSize = if (progress < 20) 20 else progress
+                prefs.edit().putInt("size", realSize).apply()
+                notifyService()
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+    }
+
+    private fun checkOverlayPermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
+            return false
         }
-
-        seekX.setOnSeekBarChangeListener(seekBarListener)
-        seekY.setOnSeekBarChangeListener(seekBarListener)
-        seekSize.setOnSeekBarChangeListener(seekBarListener)
-
-        // Selettori Colore
-        findViewById<Button>(R.id.btnColorHour).setOnClickListener { showColorPicker("colorHour") }
-        findViewById<Button>(R.id.btnColorMinute).setOnClickListener { showColorPicker("colorMinute") }
-        findViewById<Button>(R.id.btnColorSecond).setOnClickListener { showColorPicker("colorSecond") }
-        findViewById<Button>(R.id.btnColorTicks).setOnClickListener { showColorPicker("colorTicks") }
+        return true
     }
 
-    private fun showColorPicker(key: String) {
-        val names = colorList.map { it.first }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Scegli Colore")
-            .setItems(names) { _, which ->
-                getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
-                    .edit().putInt(key, colorList[which].second).apply()
-                sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
-            }
-            .show()
+    private fun isOverlayPermissionGranted(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(this)
+        } else true
     }
 
-    private fun checkOverlayPermission(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this) else true
-
-    private fun requestOverlayPermission() {
-        Toast.makeText(this, "Attiva il permesso 'Visualizzazione sopra altre app'", Toast.LENGTH_LONG).show()
-        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-    }
-
-    private fun toggleClockService(start: Boolean) {
+    private fun startClockService() {
         val intent = Intent(this, ClockService::class.java)
-        if (start) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
         } else {
-            stopService(intent)
+            startService(intent)
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (checkOverlayPermission() && !switchService.isChecked) {
-            switchService.isChecked = true
-            toggleClockService(true)
-        }
+    private fun stopClockService() {
+        val intent = Intent(this, ClockService::class.java)
+        stopService(intent)
+    }
+
+    private fun notifyService() {
+        sendBroadcast(Intent("com.example.notchclock.UPDATE_SETTINGS"))
     }
 }
