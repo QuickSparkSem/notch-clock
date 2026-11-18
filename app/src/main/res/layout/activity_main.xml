@@ -29,9 +29,10 @@
             android:textSize="14sp" />
 
         <LinearLayout
+            android:id="@+id/cardStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_card"
+            android:background="#1E1E1E"
             android:orientation="vertical"
             android:padding="16dp">
 
@@ -64,10 +65,11 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/cardPosition"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:background="@drawable/bg_card"
+            android:background="#1E1E1E"
             android:orientation="vertical"
             android:padding="16dp">
 
@@ -179,10 +181,11 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/cardColors"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:background="@drawable/bg_card"
+            android:background="#1E1E1E"
             android:orientation="vertical"
             android:padding="16dp">
 
