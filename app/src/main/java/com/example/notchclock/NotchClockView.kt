@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.view.View
 import java.util.Calendar
 import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.sin
 
 class NotchClockView @JvmOverloads constructor(
@@ -17,6 +18,8 @@ class NotchClockView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val calendar = Calendar.getInstance()
+
     private var useHands = true
     private var hourColor = Color.WHITE
     private var minuteColor = Color.WHITE
@@ -40,54 +43,57 @@ class NotchClockView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        val minSide = min(width, height).toFloat()
+        val padding = (minSide * 0.06f).coerceAtLeast(2f)
+        val radius = (minSide / 2f) - padding
+        if (radius <= 0f) return
+
         val centerX = width / 2f
         val centerY = height / 2f
-        val radius = (Math.min(width, height) / 2f) - 10f
 
-        if (radius <= 0) return
-
-        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = System.currentTimeMillis()
         val hours = calendar.get(Calendar.HOUR)
         val minutes = calendar.get(Calendar.MINUTE)
         val seconds = calendar.get(Calendar.SECOND)
 
-        // Disegna le tacche del quadrante
+        val tickLength = (radius * 0.16f).coerceAtLeast(3f)
         paint.color = ticksColor
-        paint.strokeWidth = 3f
+        paint.strokeWidth = (radius * 0.035f).coerceAtLeast(1.2f)
         paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
 
         for (i in 0 until 12) {
             val angle = Math.toRadians((i * 30 - 90).toDouble())
-            val startX = centerX + (radius - 12) * cos(angle).toFloat()
-            val startY = centerY + (radius - 12) * sin(angle).toFloat()
-            val endX = centerX + radius * cos(angle).toFloat()
-            val endY = centerY + radius * sin(angle).toFloat()
-            canvas.drawLine(startX, startY, endX, endY, paint)
+            val cosA = cos(angle).toFloat()
+            val sinA = sin(angle).toFloat()
+            canvas.drawLine(
+                centerX + (radius - tickLength) * cosA,
+                centerY + (radius - tickLength) * sinA,
+                centerX + radius * cosA,
+                centerY + radius * sinA,
+                paint
+            )
         }
 
-        // Calcolo angoli lancette/puntini
         val hourAngle = Math.toRadians(((hours + minutes / 60f) * 30 - 90).toDouble())
         val minuteAngle = Math.toRadians(((minutes + seconds / 60f) * 6 - 90).toDouble())
         val secondAngle = Math.toRadians((seconds * 6 - 90).toDouble())
 
         if (useHands) {
-            // RENDERING A LANCETTE
             paint.style = Paint.Style.STROKE
             paint.strokeCap = Paint.Cap.ROUND
 
-            // Ore
             paint.color = hourColor
-            paint.strokeWidth = 8f
+            paint.strokeWidth = (radius * 0.09f).coerceAtLeast(2.5f)
             canvas.drawLine(
                 centerX, centerY,
-                centerX + (radius * 0.5f) * cos(hourAngle).toFloat(),
-                centerY + (radius * 0.5f) * sin(hourAngle).toFloat(),
+                centerX + (radius * 0.50f) * cos(hourAngle).toFloat(),
+                centerY + (radius * 0.50f) * sin(hourAngle).toFloat(),
                 paint
             )
 
-            // Minuti
             paint.color = minuteColor
-            paint.strokeWidth = 5f
+            paint.strokeWidth = (radius * 0.06f).coerceAtLeast(2f)
             canvas.drawLine(
                 centerX, centerY,
                 centerX + (radius * 0.75f) * cos(minuteAngle).toFloat(),
@@ -95,36 +101,43 @@ class NotchClockView @JvmOverloads constructor(
                 paint
             )
 
-            // Secondi
             paint.color = secondColor
-            paint.strokeWidth = 3f
+            paint.strokeWidth = (radius * 0.03f).coerceAtLeast(1.2f)
             canvas.drawLine(
                 centerX, centerY,
-                centerX + (radius * 0.9f) * cos(secondAngle).toFloat(),
-                centerY + (radius * 0.9f) * sin(secondAngle).toFloat(),
+                centerX + (radius * 0.88f) * cos(secondAngle).toFloat(),
+                centerY + (radius * 0.88f) * sin(secondAngle).toFloat(),
                 paint
             )
+
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(centerX, centerY, (radius * 0.065f).coerceAtLeast(2f), paint)
         } else {
-            // RENDERING A PUNTINI
             paint.style = Paint.Style.FILL
 
-            // Puntino Ore
             paint.color = hourColor
-            val hX = centerX + (radius * 0.55f) * cos(hourAngle).toFloat()
-            val hY = centerY + (radius * 0.55f) * sin(hourAngle).toFloat()
-            canvas.drawCircle(hX, hY, 7f, paint)
+            canvas.drawCircle(
+                centerX + (radius * 0.55f) * cos(hourAngle).toFloat(),
+                centerY + (radius * 0.55f) * sin(hourAngle).toFloat(),
+                (radius * 0.11f).coerceAtLeast(3f),
+                paint
+            )
 
-            // Puntino Minuti
             paint.color = minuteColor
-            val mX = centerX + (radius * 0.75f) * cos(minuteAngle).toFloat()
-            val mY = centerY + (radius * 0.75f) * sin(minuteAngle).toFloat()
-            canvas.drawCircle(mX, mY, 5f, paint)
+            canvas.drawCircle(
+                centerX + (radius * 0.75f) * cos(minuteAngle).toFloat(),
+                centerY + (radius * 0.75f) * sin(minuteAngle).toFloat(),
+                (radius * 0.08f).coerceAtLeast(2.5f),
+                paint
+            )
 
-            // Puntino Secondi
             paint.color = secondColor
-            val sX = centerX + (radius * 0.9f) * cos(secondAngle).toFloat()
-            val sY = centerY + (radius * 0.9f) * sin(secondAngle).toFloat()
-            canvas.drawCircle(sX, sY, 3.5f, paint)
+            canvas.drawCircle(
+                centerX + (radius * 0.88f) * cos(secondAngle).toFloat(),
+                centerY + (radius * 0.88f) * sin(secondAngle).toFloat(),
+                (radius * 0.055f).coerceAtLeast(2f),
+                paint
+            )
         }
     }
 }
