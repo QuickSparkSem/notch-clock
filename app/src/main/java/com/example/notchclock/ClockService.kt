@@ -16,9 +16,12 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
+import kotlin.math.max
+import kotlin.math.min
 
 class ClockService : Service() {
 
@@ -75,7 +78,6 @@ class ClockService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         clockView = NotchClockView(this)
 
-        val size = prefs.getInt("size", 120)
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -84,8 +86,8 @@ class ClockService : Service() {
         }
 
         params = WindowManager.LayoutParams(
-            size,
-            size,
+            120,
+            120,
             overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
@@ -94,15 +96,14 @@ class ClockService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = prefs.getInt("offsetX", 0)
-            y = prefs.getInt("offsetY", 0)
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
+
+        calculateWindowBounds()
 
         val added = runCatching { windowManager.addView(clockView, params) }.isSuccess
         if (!added) {
@@ -130,16 +131,44 @@ class ClockService : Service() {
         return START_STICKY
     }
 
+    private fun calculateWindowBounds() {
+        val size = prefs.getInt("size", 120)
+        val offsetX = prefs.getInt("offsetX", 0)
+        val offsetY = prefs.getInt("offsetY", 0)
+        val digitalEnabled = prefs.getBoolean("digitalEnabled", true)
+
+        if (digitalEnabled) {
+            val digitalDistance = prefs.getInt("digitalDistance", 14)
+            val digitalSize = prefs.getInt("digitalSize", 22)
+            val digitalY = prefs.getInt("digitalY", 45)
+            val textSizePx = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                digitalSize.toFloat(),
+                resources.displayMetrics
+            )
+
+            val halfSpanX = (size / 2f) + digitalDistance + (textSizePx * 2.2f) + 24f
+            val winTop = min(offsetY, (digitalY - textSizePx).toInt())
+            val winBottom = max(offsetY + size, (digitalY + textSizePx).toInt())
+
+            params.width = (halfSpanX * 2f).toInt().coerceAtLeast(size)
+            params.height = (winBottom - winTop).coerceAtLeast(size)
+            params.x = offsetX
+            params.y = winTop
+        } else {
+            params.width = size
+            params.height = size
+            params.x = offsetX
+            params.y = offsetY
+        }
+    }
+
     private fun updateViewParams() {
         if (!::prefs.isInitialized || !::clockView.isInitialized) return
 
-        val size = prefs.getInt("size", 120)
-        params.width = size
-        params.height = size
-        params.x = prefs.getInt("offsetX", 0)
-        params.y = prefs.getInt("offsetY", 0)
-
+        calculateWindowBounds()
         clockView.reloadPreferences()
+
         if (clockView.windowToken != null) {
             runCatching { windowManager.updateViewLayout(clockView, params) }
         }
