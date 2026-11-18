@@ -6,9 +6,13 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Typeface
+import android.text.format.DateFormat
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.View
 import java.util.Calendar
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -20,9 +24,16 @@ class NotchClockView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
     private val calendar = Calendar.getInstance()
     private val handPath = Path()
     private val arcRect = RectF()
+
+    // Dimensione e posizione base
+    private var clockSize = 120
+    private var offsetY = 0
 
     // Stili:
     // dialStyle: 0 = Classico (12), 1 = Minimal (4), 2 = Completo (60), 3 = Anello, 4 = Nessuno
@@ -56,6 +67,14 @@ class NotchClockView @JvmOverloads constructor(
     private var secondTransparency = 0
     private var ticksTransparency = 0
 
+    // Numeri laterali (ore a sinistra, minuti a destra)
+    private var digitalEnabled = true
+    private var digitalDistance = 14
+    private var digitalSize = 22
+    private var digitalY = 45
+    private var digitalTransparency = 0
+    private var digitalColor = Color.WHITE
+
     init {
         reloadPreferences()
     }
@@ -63,6 +82,9 @@ class NotchClockView @JvmOverloads constructor(
     fun reloadPreferences() {
         val prefs = context.getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
         val fallbackHandStyle = if (prefs.getBoolean("useHands", true)) 1 else 2
+
+        clockSize = prefs.getInt("size", 120)
+        offsetY = prefs.getInt("offsetY", 0)
 
         dialStyle = prefs.getInt("dialStyle", 0)
         handStyle = prefs.getInt("handStyle", fallbackHandStyle)
@@ -88,19 +110,37 @@ class NotchClockView @JvmOverloads constructor(
         secondTransparency = prefs.getInt("secondTransparency", 0)
         ticksTransparency = prefs.getInt("ticksTransparency", 0)
 
+        digitalEnabled = prefs.getBoolean("digitalEnabled", true)
+        digitalDistance = prefs.getInt("digitalDistance", 14)
+        digitalSize = prefs.getInt("digitalSize", 22)
+        digitalY = prefs.getInt("digitalY", 45)
+        digitalTransparency = prefs.getInt("digitalTransparency", 0)
+        digitalColor = prefs.getInt("digitalColor", Color.WHITE)
+
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val minSide = min(width, height).toFloat()
+        val minSide = clockSize.toFloat()
         val padding = (minSide * 0.06f).coerceAtLeast(3f)
         val radius = (minSide / 2f) - padding
         if (radius <= 0f) return
 
+        val textSizePx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            digitalSize.toFloat(),
+            resources.displayMetrics
+        )
+        val winTop = if (digitalEnabled) min(offsetY, (digitalY - textSizePx).toInt()) else offsetY
+
         val centerX = width / 2f
-        val centerY = height / 2f
+        val centerY = if (digitalEnabled) {
+            (offsetY - winTop) + (clockSize / 2f)
+        } else {
+            height / 2f
+        }
         val scale = radius / 100f
 
         calendar.timeInMillis = System.currentTimeMillis()
@@ -120,7 +160,7 @@ class NotchClockView @JvmOverloads constructor(
         val minuteAngle = Math.toRadians((minuteProgress * 360f - 90f).toDouble())
         val secondAngle = Math.toRadians((secondProgress * 360f - 90f).toDouble())
 
-        // 3. Disegna Ore, Minuti, Secondi
+        // 3. Disegna Ore, Minuti, Secondi analogici
         drawHandElement(
             canvas, centerX, centerY, radius, scale,
             hourAngle, hourProgress, hourColor, hourTransparency, hourLength, hourThickness
@@ -147,6 +187,56 @@ class NotchClockView @JvmOverloads constructor(
                 canvas.drawCircle(centerX, centerY, (3.2f * scale).coerceAtLeast(2f), paint)
             }
         }
+
+        // 5. Numeri laterali: Ore a sinistra, Minuti a destra
+        if (digitalEnabled && digitalTransparency < 100) {
+            drawSideDigits(canvas, centerX, winTop, textSizePx, minutes)
+        }
+    }
+
+    private fun drawSideDigits(
+        canvas: Canvas,
+        centerX: Float,
+        winTop: Int,
+        textSizePx: Float,
+        minutes: Int
+    ) {
+        val finalTextColor = applyTransparency(digitalColor, digitalTransparency)
+        if (Color.alpha(finalTextColor) == 0) return
+
+        val digitalCenterY = (digitalY - winTop).toFloat()
+        val shadowAlpha = ((100 - digitalTransparency) * 215) / 100
+
+        textPaint.textSize = textSizePx
+        textPaint.color = finalTextColor
+        textPaint.setShadowLayer(
+            (textSizePx * 0.14f).coerceAtLeast(2f),
+            0f,
+            (textSizePx * 0.08f).coerceAtLeast(1.5f),
+            Color.argb(shadowAlpha, 0, 0, 0)
+        )
+
+        val fontMetrics = textPaint.fontMetrics
+        val baselineY = digitalCenterY - (fontMetrics.ascent + fontMetrics.descent) / 2f
+
+        val hourValue = if (DateFormat.is24HourFormat(context)) {
+            calendar.get(Calendar.HOUR_OF_DAY)
+        } else {
+            val h12 = calendar.get(Calendar.HOUR)
+            if (h12 == 0) 12 else h12
+        }
+
+        val hourStr = String.format(Locale.US, "%02d", hourValue)
+        val minuteStr = String.format(Locale.US, "%02d", minutes)
+        val edgeOffset = (clockSize / 2f) + digitalDistance
+
+        // Ore a sinistra
+        textPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText(hourStr, centerX - edgeOffset, baselineY, textPaint)
+
+        // Minuti a destra
+        textPaint.textAlign = Paint.Align.LEFT
+        canvas.drawText(minuteStr, centerX + edgeOffset, baselineY, textPaint)
     }
 
     private fun drawDial(
@@ -165,7 +255,6 @@ class NotchClockView @JvmOverloads constructor(
         val baseStroke = (ticksThickness * scale * 0.9f).coerceAtLeast(1.2f)
         val baseLen = (radius * (ticksLength / 100f)).coerceAtLeast(3f)
 
-        // Stile 3: Anello continuo
         if (dialStyle == 3) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = baseStroke
@@ -174,9 +263,9 @@ class NotchClockView @JvmOverloads constructor(
         }
 
         val totalTicks = when (dialStyle) {
-            1 -> 4   // Minimal (12, 3, 6, 9)
-            2 -> 60  // Completo (60 tacche)
-            else -> 12 // Classico (12 tacche)
+            1 -> 4
+            2 -> 60
+            else -> 12
         }
         val stepDegrees = 360.0 / totalTicks
 
@@ -187,7 +276,6 @@ class NotchClockView @JvmOverloads constructor(
             val sinA = sin(angle).toFloat()
 
             if (tickShape == 1) {
-                // Tacche Tonde
                 paint.style = Paint.Style.FILL
                 val dotRadius = if (isMajor) {
                     (ticksThickness * scale * 0.95f).coerceAtLeast(2f)
@@ -197,7 +285,6 @@ class NotchClockView @JvmOverloads constructor(
                 val dist = radius - dotRadius
                 canvas.drawCircle(centerX + dist * cosA, centerY + dist * sinA, dotRadius, paint)
             } else {
-                // Tacche Lineari
                 paint.style = Paint.Style.STROKE
                 paint.strokeCap = Paint.Cap.ROUND
                 paint.strokeWidth = if (isMajor) baseStroke else (baseStroke * 0.55f).coerceAtLeast(1f)
@@ -237,7 +324,6 @@ class NotchClockView @JvmOverloads constructor(
 
         when (handStyle) {
             0 -> {
-                // Lancette classiche lineari
                 paint.style = Paint.Style.STROKE
                 paint.strokeCap = Paint.Cap.ROUND
                 paint.strokeWidth = (thickness * scale * 1.05f).coerceAtLeast(1.3f)
@@ -250,7 +336,6 @@ class NotchClockView @JvmOverloads constructor(
                 )
             }
             1 -> {
-                // A punta (sagomata a forma di lancetta d'orologio)
                 paint.style = Paint.Style.FILL
                 val perpX = -sinA
                 val perpY = cosA
@@ -273,7 +358,6 @@ class NotchClockView @JvmOverloads constructor(
                 canvas.drawPath(handPath, paint)
             }
             2 -> {
-                // Tonde (puntini orbitanti)
                 paint.style = Paint.Style.FILL
                 val dotRadius = (thickness * scale * 1.15f).coerceAtLeast(2.2f)
                 canvas.drawCircle(
@@ -284,7 +368,6 @@ class NotchClockView @JvmOverloads constructor(
                 )
             }
             3 -> {
-                // Archi concentrici
                 paint.style = Paint.Style.STROKE
                 paint.strokeCap = Paint.Cap.ROUND
                 val strokeW = (thickness * scale * 1.05f).coerceAtLeast(1.5f)
