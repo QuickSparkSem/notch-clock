@@ -24,7 +24,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="20dp"
-            android:text="Personalizza stile, proporzioni e trasparenza"
+            android:text="Personalizza stile, proporzioni e numeri laterali"
             android:textColor="#9E9E9E"
             android:textSize="14sp" />
 
@@ -97,7 +97,7 @@
 
         </LinearLayout>
 
-        <!-- SCHEDA 2: POSIZIONE E DIMENSIONE -->
+        <!-- SCHEDA 2: POSIZIONE E DIMENSIONE OROLOGIO -->
         <LinearLayout
             android:id="@+id/cardPosition"
             android:layout_width="match_parent"
@@ -111,7 +111,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
-                android:text="POSIZIONE E DIMENSIONE"
+                android:text="POSIZIONE E DIMENSIONE OROLOGIO"
                 android:textColor="#9E9E9E"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -208,7 +208,154 @@
 
         </LinearLayout>
 
-        <!-- SCHEDA 3: LANCETTA ORE -->
+        <!-- SCHEDA 3: NUMERI LATERALI (ORE A SINISTRA, MINUTI A DESTRA) -->
+        <LinearLayout
+            android:id="@+id/cardDigital"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#1E1E1E"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="NUMERI LATERALI (ORE SX • MINUTI DX)"
+                android:textColor="#9E9E9E"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchDigital"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:minHeight="48dp"
+                android:text="Mostra ore e minuti laterali"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/btnDigitalColor"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginBottom="12dp"
+                android:backgroundTint="#2A2A2A"
+                android:gravity="start|center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="Colore caratteri"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Distanza dall'orologio"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+                <TextView
+                    android:id="@+id/tvDigitalDistance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="14 px"
+                    android:textColor="#9E9E9E"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <SeekBar
+                android:id="@+id/seekDigitalDistance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Distanza dal lato superiore (Y)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+                <TextView
+                    android:id="@+id/tvDigitalY"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="45 px"
+                    android:textColor="#9E9E9E"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <SeekBar
+                android:id="@+id/seekDigitalY"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Grandezza caratteri"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+                <TextView
+                    android:id="@+id/tvDigitalSize"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="22"
+                    android:textColor="#9E9E9E"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <SeekBar
+                android:id="@+id/seekDigitalSize"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Trasparenza caratteri"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+                <TextView
+                    android:id="@+id/tvDigitalAlpha"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0%"
+                    android:textColor="#9E9E9E"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            <SeekBar
+                android:id="@+id/seekDigitalAlpha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
+
+        </LinearLayout>
+
+        <!-- SCHEDA 4: LANCETTA ORE -->
         <LinearLayout
             android:id="@+id/cardHours"
             android:layout_width="match_parent"
@@ -319,7 +466,7 @@
 
         </LinearLayout>
 
-        <!-- SCHEDA 4: LANCETTA MINUTI -->
+        <!-- SCHEDA 5: LANCETTA MINUTI -->
         <LinearLayout
             android:id="@+id/cardMinutes"
             android:layout_width="match_parent"
@@ -430,7 +577,7 @@
 
         </LinearLayout>
 
-        <!-- SCHEDA 5: LANCETTA SECONDI -->
+        <!-- SCHEDA 6: LANCETTA SECONDI -->
         <LinearLayout
             android:id="@+id/cardSeconds"
             android:layout_width="match_parent"
@@ -541,7 +688,7 @@
 
         </LinearLayout>
 
-        <!-- SCHEDA 6: TACCHE QUADRANTE -->
+        <!-- SCHEDA 7: TACCHE QUADRANTE -->
         <LinearLayout
             android:id="@+id/cardTicks"
             android:layout_width="match_parent"
