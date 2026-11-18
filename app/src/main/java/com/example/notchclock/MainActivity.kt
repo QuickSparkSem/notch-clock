@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         listOf(
             R.id.cardStatus,
             R.id.cardPosition,
+            R.id.cardDigital,
             R.id.cardHours,
             R.id.cardMinutes,
             R.id.cardSeconds,
@@ -86,7 +87,6 @@ class MainActivity : AppCompatActivity() {
         val seekBarSize = findViewById<SeekBar>(R.id.seekBarSize)
         val btnResetPosition = findViewById<Button>(R.id.btnResetPosition)
 
-        // Ticks sliders (servono anche per l'adattamento automatico anti-confusione)
         val seekTicksLength = findViewById<SeekBar>(R.id.seekTicksLength)
         val tvTicksLength = findViewById<TextView>(R.id.tvTicksLength)
 
@@ -119,7 +119,6 @@ class MainActivity : AppCompatActivity() {
                 .setTitle("Scegli forma lancette")
                 .setSingleChoiceItems(handStyles, current) { dialog, which ->
                     val editor = prefs.edit().putInt("handStyle", which)
-                    // Regola anti-confusione: se lancette = Tonde (2), tacche devono essere lineari lunghe
                     if (which == 2) {
                         editor.putInt("tickShape", 0)
                         val curTickLen = prefs.getInt("ticksLength", 18)
@@ -147,7 +146,6 @@ class MainActivity : AppCompatActivity() {
                 .setTitle("Scegli forma tacche")
                 .setSingleChoiceItems(tickShapes, current) { dialog, which ->
                     val editor = prefs.edit().putInt("tickShape", which)
-                    // Regola anti-confusione: se tacche = Tonde (1) e lancette erano Tonde (2), passa a lancette a punta (1)
                     if (which == 1 && prefs.getInt("handStyle", 1) == 2) {
                         editor.putInt("handStyle", 1)
                         Toast.makeText(
@@ -163,7 +161,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        // Posizione e dimensione
+        // Posizione e dimensione orologio analogico
         val initX = prefs.getInt("offsetX", 0)
         val initY = prefs.getInt("offsetY", 0)
         val initSize = prefs.getInt("size", 120)
@@ -226,6 +224,19 @@ class MainActivity : AppCompatActivity() {
                 .apply()
         }
 
+        // Controlli NUMERI LATERALI (Ore SX, Minuti DX)
+        val switchDigital = findViewById<SwitchCompat>(R.id.switchDigital)
+        switchDigital.isChecked = prefs.getBoolean("digitalEnabled", true)
+        switchDigital.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("digitalEnabled", isChecked).apply()
+        }
+
+        setupColorButton(findViewById(R.id.btnDigitalColor), "digitalColor", Color.WHITE, "Colore caratteri")
+        bindSlider("digitalDistance", 14, -20, 200, " px", findViewById(R.id.seekDigitalDistance), findViewById(R.id.tvDigitalDistance))
+        bindSlider("digitalY", 45, 0, 500, " px", findViewById(R.id.seekDigitalY), findViewById(R.id.tvDigitalY))
+        bindSlider("digitalSize", 22, 10, 72, "", findViewById(R.id.seekDigitalSize), findViewById(R.id.tvDigitalSize))
+        bindSlider("digitalTransparency", 0, 0, 100, "%", findViewById(R.id.seekDigitalAlpha), findViewById(R.id.tvDigitalAlpha))
+
         // Controlli ORE
         setupColorButton(findViewById(R.id.btnHourColor), "hourColor", Color.WHITE, "Colore Ore")
         bindSlider("hourLength", 50, 20, 95, "%", findViewById(R.id.seekHourLength), findViewById(R.id.tvHourLength))
@@ -256,6 +267,12 @@ class MainActivity : AppCompatActivity() {
                 .putInt("dialStyle", 0)
                 .putInt("handStyle", 1)
                 .putInt("tickShape", 0)
+                .putBoolean("digitalEnabled", true)
+                .putInt("digitalColor", Color.WHITE)
+                .putInt("digitalDistance", 14)
+                .putInt("digitalY", 45)
+                .putInt("digitalSize", 22)
+                .putInt("digitalTransparency", 0)
                 .putInt("hourColor", Color.WHITE)
                 .putInt("minuteColor", Color.WHITE)
                 .putInt("secondColor", Color.parseColor("#FF5252"))
