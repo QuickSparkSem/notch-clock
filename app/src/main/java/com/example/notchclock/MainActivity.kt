@@ -43,6 +43,10 @@ class MainActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
+        styleCard(findViewById(R.id.cardStatus))
+        styleCard(findViewById(R.id.cardPosition))
+        styleCard(findViewById(R.id.cardColors))
+
         switchEnable = findViewById(R.id.switchEnable)
         val switchHands = findViewById<SwitchCompat>(R.id.switchHands)
 
@@ -145,6 +149,16 @@ class MainActivity : AppCompatActivity() {
                 prefs.edit().putBoolean("isEnabled", false).apply()
             }
             switchEnable.isChecked = false
+        }
+    }
+
+    private fun styleCard(view: View) {
+        val density = resources.displayMetrics.density
+        view.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 16f * density
+            setColor(Color.parseColor("#1E1E1E"))
+            setStroke((1f * density).toInt().coerceAtLeast(1), Color.parseColor("#2C2C2C"))
         }
     }
 
