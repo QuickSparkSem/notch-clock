@@ -1,12 +1,15 @@
 package com.example.notchclock
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.BatteryManager
 import android.text.format.DateFormat
 import android.util.AttributeSet
 import android.util.TypedValue
@@ -24,26 +27,28 @@ class NotchClockView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val sidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
     private val calendar = Calendar.getInstance()
-    private val handPath = Path()
+    private val shapePath = Path()
     private val arcRect = RectF()
+
+    // Interruttori principali
+    private var analogEnabled = true
+    private var leftTimeEnabled = true
+    private var rightBatteryEnabled = true
 
     // Dimensione e posizione base
     private var clockSize = 120
     private var offsetY = 0
 
-    // Stili:
-    // dialStyle: 0 = Classico (12), 1 = Minimal (4), 2 = Completo (60), 3 = Anello, 4 = Nessuno
-    // handStyle: 0 = Classiche lineari, 1 = A punta (lancetta), 2 = Tonde (puntini), 3 = Archi
-    // tickShape: 0 = Lineari, 1 = Tonde
+    // Stili orologio tondo
     private var dialStyle = 0
     private var handStyle = 1
     private var tickShape = 0
 
-    // Colori
+    // Colori orologio tondo
     private var hourColor = Color.WHITE
     private var minuteColor = Color.WHITE
     private var secondColor = Color.parseColor("#FF5252")
@@ -67,13 +72,17 @@ class NotchClockView @JvmOverloads constructor(
     private var secondTransparency = 0
     private var ticksTransparency = 0
 
-    // Numeri laterali (ore a sinistra, minuti a destra)
-    private var digitalEnabled = true
-    private var digitalDistance = 14
-    private var digitalSize = 22
-    private var digitalY = 45
-    private var digitalTransparency = 0
-    private var digitalColor = Color.WHITE
+    // Elementi laterali (Orario impilato SX • Batteria DX)
+    private var sideDistance = 12
+    private var sideSize = 14
+    private var sideY = 42
+    private var sideTransparency = 0
+    private var sideColor = Color.WHITE
+
+    // Cache lettura batteria (aggiornata ogni 3 secondi)
+    private var lastBatteryReadMs = 0L
+    private var batteryPct = 100
+    private var isCharging = false
 
     init {
         reloadPreferences()
@@ -82,6 +91,10 @@ class NotchClockView @JvmOverloads constructor(
     fun reloadPreferences() {
         val prefs = context.getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
         val fallbackHandStyle = if (prefs.getBoolean("useHands", true)) 1 else 2
+
+        analogEnabled = prefs.getBoolean("analogEnabled", true)
+        leftTimeEnabled = prefs.getBoolean("leftTimeEnabled", true)
+        rightBatteryEnabled = prefs.getBoolean("rightBatteryEnabled", true)
 
         clockSize = prefs.getInt("size", 120)
         offsetY = prefs.getInt("offsetY", 0)
@@ -110,71 +123,92 @@ class NotchClockView @JvmOverloads constructor(
         secondTransparency = prefs.getInt("secondTransparency", 0)
         ticksTransparency = prefs.getInt("ticksTransparency", 0)
 
-        digitalEnabled = prefs.getBoolean("digitalEnabled", true)
-        digitalDistance = prefs.getInt("digitalDistance", 14)
-        digitalSize = prefs.getInt("digitalSize", 22)
-        digitalY = prefs.getInt("digitalY", 45)
-        digitalTransparency = prefs.getInt("digitalTransparency", 0)
-        digitalColor = prefs.getInt("digitalColor", Color.WHITE)
+        sideDistance = prefs.getInt("sideDistance", 12)
+        sideSize = prefs.getInt("sideSize", 14)
+        sideY = prefs.getInt("sideY", 42)
+        sideTransparency = prefs.getInt("sideTransparency", 0)
+        sideColor = prefs.getInt("sideColor", Color.WHITE)
 
+        lastBatteryReadMs = 0L
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
+        val hasSideElements = leftTimeEnabled || rightBatteryEnabled
+        if (!analogEnabled && !hasSideElements) return
+
+        val textSizePx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            sideSize.toFloat(),
+            resources.displayMetrics
+        )
+        val sideHalfH = (textSizePx * 1.35f).toInt() + 8
+        val winTop = when {
+            analogEnabled && hasSideElements -> min(offsetY, sideY - sideHalfH)
+            hasSideElements -> sideY - sideHalfH
+            else -> offsetY
+        }
+
+        val centerX = width / 2f
+        val now = System.currentTimeMillis()
+        calendar.timeInMillis = now
+
+        // 1. Orologio tondo analogico (se attivato)
+        if (analogEnabled) {
+            val analogCenterY = (offsetY - winTop) + (clockSize / 2f)
+            drawAnalogClock(canvas, centerX, analogCenterY)
+        }
+
+        // 2. Elementi laterali: Orario impilato SX • Batteria DX
+        if (hasSideElements && sideTransparency < 100) {
+            val sideCenterY = (sideY - winTop).toFloat()
+            val edgeOffset = (clockSize / 2f) + sideDistance
+
+            if (leftTimeEnabled) {
+                drawStackedTimeLeft(canvas, centerX - edgeOffset, sideCenterY, textSizePx)
+            }
+            if (rightBatteryEnabled) {
+                refreshBatteryIfNeeded(now)
+                drawBatteryRight(canvas, centerX + edgeOffset, sideCenterY, textSizePx)
+            }
+        }
+    }
+
+    private fun drawAnalogClock(canvas: Canvas, centerX: Float, centerY: Float) {
         val minSide = clockSize.toFloat()
         val padding = (minSide * 0.06f).coerceAtLeast(3f)
         val radius = (minSide / 2f) - padding
         if (radius <= 0f) return
 
-        val textSizePx = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_SP,
-            digitalSize.toFloat(),
-            resources.displayMetrics
-        )
-        val winTop = if (digitalEnabled) min(offsetY, (digitalY - textSizePx).toInt()) else offsetY
-
-        val centerX = width / 2f
-        val centerY = if (digitalEnabled) {
-            (offsetY - winTop) + (clockSize / 2f)
-        } else {
-            height / 2f
-        }
         val scale = radius / 100f
-
-        calendar.timeInMillis = System.currentTimeMillis()
         val hours = calendar.get(Calendar.HOUR)
         val minutes = calendar.get(Calendar.MINUTE)
         val seconds = calendar.get(Calendar.SECOND)
 
-        // 1. Disegna il quadrante / tacche
         drawDial(canvas, centerX, centerY, radius, scale)
 
-        // 2. Calcola angoli e progressi
         val hourProgress = ((hours % 12) + minutes / 60f) / 12f
         val minuteProgress = (minutes + seconds / 60f) / 60f
         val secondProgress = seconds / 60f
 
-        val hourAngle = Math.toRadians((hourProgress * 360f - 90f).toDouble())
-        val minuteAngle = Math.toRadians((minuteProgress * 360f - 90f).toDouble())
-        val secondAngle = Math.toRadians((secondProgress * 360f - 90f).toDouble())
-
-        // 3. Disegna Ore, Minuti, Secondi analogici
         drawHandElement(
             canvas, centerX, centerY, radius, scale,
-            hourAngle, hourProgress, hourColor, hourTransparency, hourLength, hourThickness
+            Math.toRadians((hourProgress * 360f - 90f).toDouble()),
+            hourProgress, hourColor, hourTransparency, hourLength, hourThickness
         )
         drawHandElement(
             canvas, centerX, centerY, radius, scale,
-            minuteAngle, minuteProgress, minuteColor, minuteTransparency, minuteLength, minuteThickness
+            Math.toRadians((minuteProgress * 360f - 90f).toDouble()),
+            minuteProgress, minuteColor, minuteTransparency, minuteLength, minuteThickness
         )
         drawHandElement(
             canvas, centerX, centerY, radius, scale,
-            secondAngle, secondProgress, secondColor, secondTransparency, secondLength, secondThickness
+            Math.toRadians((secondProgress * 360f - 90f).toDouble()),
+            secondProgress, secondColor, secondTransparency, secondLength, secondThickness
         )
 
-        // 4. Perno centrale per lancette classiche o a punta
         if (handStyle == 0 || handStyle == 1) {
             val pinColor = if (secondTransparency < 100) {
                 applyTransparency(secondColor, secondTransparency)
@@ -187,56 +221,124 @@ class NotchClockView @JvmOverloads constructor(
                 canvas.drawCircle(centerX, centerY, (3.2f * scale).coerceAtLeast(2f), paint)
             }
         }
-
-        // 5. Numeri laterali: Ore a sinistra, Minuti a destra
-        if (digitalEnabled && digitalTransparency < 100) {
-            drawSideDigits(canvas, centerX, winTop, textSizePx, minutes)
-        }
     }
 
-    private fun drawSideDigits(
+    private fun drawStackedTimeLeft(
         canvas: Canvas,
-        centerX: Float,
-        winTop: Int,
-        textSizePx: Float,
-        minutes: Int
+        rightEdgeX: Float,
+        centerY: Float,
+        textSizePx: Float
     ) {
-        val finalTextColor = applyTransparency(digitalColor, digitalTransparency)
-        if (Color.alpha(finalTextColor) == 0) return
+        val textColor = applyTransparency(sideColor, sideTransparency)
+        if (Color.alpha(textColor) == 0) return
 
-        val digitalCenterY = (digitalY - winTop).toFloat()
-        val shadowAlpha = ((100 - digitalTransparency) * 215) / 100
+        val shadowAlpha = ((100 - sideTransparency) * 215) / 100
+        val shadowRadius = (textSizePx * 0.14f).coerceAtLeast(1.8f)
+        val shadowDy = (textSizePx * 0.08f).coerceAtLeast(1.2f)
+        val shadowColor = Color.argb(shadowAlpha, 0, 0, 0)
 
-        textPaint.textSize = textSizePx
-        textPaint.color = finalTextColor
-        textPaint.setShadowLayer(
-            (textSizePx * 0.14f).coerceAtLeast(2f),
-            0f,
-            (textSizePx * 0.08f).coerceAtLeast(1.5f),
-            Color.argb(shadowAlpha, 0, 0, 0)
-        )
+        sidePaint.style = Paint.Style.FILL
+        sidePaint.textSize = textSizePx
+        sidePaint.color = textColor
+        sidePaint.textAlign = Paint.Align.CENTER
+        sidePaint.setShadowLayer(shadowRadius, 0f, shadowDy, shadowColor)
 
-        val fontMetrics = textPaint.fontMetrics
-        val baselineY = digitalCenterY - (fontMetrics.ascent + fontMetrics.descent) / 2f
-
-        val hourValue = if (DateFormat.is24HourFormat(context)) {
+        val hourVal = if (DateFormat.is24HourFormat(context)) {
             calendar.get(Calendar.HOUR_OF_DAY)
         } else {
             val h12 = calendar.get(Calendar.HOUR)
             if (h12 == 0) 12 else h12
         }
+        val hourStr = String.format(Locale.US, "%02d", hourVal)
+        val minStr = String.format(Locale.US, "%02d", calendar.get(Calendar.MINUTE))
 
-        val hourStr = String.format(Locale.US, "%02d", hourValue)
-        val minuteStr = String.format(Locale.US, "%02d", minutes)
-        val edgeOffset = (clockSize / 2f) + digitalDistance
+        val colWidth = sidePaint.measureText("00")
+        val colCenterX = rightEdgeX - (colWidth / 2f)
+        val fm = sidePaint.fontMetrics
+        val gap = textSizePx * 0.18f
 
-        // Ore a sinistra
-        textPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText(hourStr, centerX - edgeOffset, baselineY, textPaint)
+        // Ore sopra
+        val hourBaseline = centerY - gap - (fm.descent * 0.2f)
+        canvas.drawText(hourStr, colCenterX, hourBaseline, sidePaint)
 
-        // Minuti a destra
-        textPaint.textAlign = Paint.Align.LEFT
-        canvas.drawText(minuteStr, centerX + edgeOffset, baselineY, textPaint)
+        // Minuti sotto
+        val minBaseline = centerY + gap - (fm.ascent * 0.82f)
+        canvas.drawText(minStr, colCenterX, minBaseline, sidePaint)
+
+        // Barretta orizzontale al centro tra ore e minuti
+        sidePaint.style = Paint.Style.STROKE
+        sidePaint.strokeCap = Paint.Cap.ROUND
+        sidePaint.strokeWidth = (textSizePx * 0.11f).coerceAtLeast(1.5f)
+        val barHalfW = colWidth * 0.42f
+        canvas.drawLine(colCenterX - barHalfW, centerY, colCenterX + barHalfW, centerY, sidePaint)
+    }
+
+    private fun drawBatteryRight(
+        canvas: Canvas,
+        leftEdgeX: Float,
+        centerY: Float,
+        textSizePx: Float
+    ) {
+        val textColor = applyTransparency(sideColor, sideTransparency)
+        if (Color.alpha(textColor) == 0) return
+
+        val shadowAlpha = ((100 - sideTransparency) * 215) / 100
+        val shadowRadius = (textSizePx * 0.14f).coerceAtLeast(1.8f)
+        val shadowDy = (textSizePx * 0.08f).coerceAtLeast(1.2f)
+        val shadowColor = Color.argb(shadowAlpha, 0, 0, 0)
+
+        // Numero batteria (1..100 senza simbolo %)
+        sidePaint.style = Paint.Style.FILL
+        sidePaint.textSize = textSizePx
+        sidePaint.color = textColor
+        sidePaint.textAlign = Paint.Align.LEFT
+        sidePaint.setShadowLayer(shadowRadius, 0f, shadowDy, shadowColor)
+
+        val pctStr = batteryPct.toString()
+        val fm = sidePaint.fontMetrics
+        val baseline = centerY - (fm.ascent + fm.descent) / 2f
+        canvas.drawText(pctStr, leftEdgeX, baseline, sidePaint)
+
+        // Fulmine accanto (giallo in carica, bianco fuori carica)
+        val numWidth = sidePaint.measureText(pctStr)
+        val boltH = textSizePx * 0.85f
+        val boltW = boltH * 0.56f
+        val boltCx = leftEdgeX + numWidth + (boltW * 0.72f)
+        val hw = boltW / 2f
+        val hh = boltH / 2f
+
+        val boltBaseColor = if (isCharging) Color.parseColor("#FFD600") else Color.WHITE
+        sidePaint.color = applyTransparency(boltBaseColor, sideTransparency)
+
+        shapePath.reset()
+        shapePath.moveTo(boltCx + hw * 0.15f, centerY - hh)
+        shapePath.lineTo(boltCx - hw, centerY + hh * 0.08f)
+        shapePath.lineTo(boltCx - hw * 0.08f, centerY + hh * 0.08f)
+        shapePath.lineTo(boltCx - hw * 0.25f, centerY + hh)
+        shapePath.lineTo(boltCx + hw, centerY - hh * 0.08f)
+        shapePath.lineTo(boltCx + hw * 0.08f, centerY - hh * 0.08f)
+        shapePath.close()
+        canvas.drawPath(shapePath, sidePaint)
+    }
+
+    private fun refreshBatteryIfNeeded(nowMs: Long) {
+        if (nowMs - lastBatteryReadMs < 3000L) return
+        lastBatteryReadMs = nowMs
+
+        val intent = runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull() ?: return
+
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+        if (level >= 0 && scale > 0) {
+            batteryPct = ((level * 100) / scale).coerceIn(1, 100)
+        }
+
+        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+            (status == BatteryManager.BATTERY_STATUS_FULL && plugged != 0)
     }
 
     private fun drawDial(
@@ -327,13 +429,7 @@ class NotchClockView @JvmOverloads constructor(
                 paint.style = Paint.Style.STROKE
                 paint.strokeCap = Paint.Cap.ROUND
                 paint.strokeWidth = (thickness * scale * 1.05f).coerceAtLeast(1.3f)
-                canvas.drawLine(
-                    centerX,
-                    centerY,
-                    centerX + len * cosA,
-                    centerY + len * sinA,
-                    paint
-                )
+                canvas.drawLine(centerX, centerY, centerX + len * cosA, centerY + len * sinA, paint)
             }
             1 -> {
                 paint.style = Paint.Style.FILL
@@ -343,29 +439,24 @@ class NotchClockView @JvmOverloads constructor(
                 val shoulderDist = len * 0.22f
                 val tailLen = (len * 0.16f).coerceAtMost(radius * 0.15f)
 
-                handPath.reset()
-                handPath.moveTo(centerX + len * cosA, centerY + len * sinA)
-                handPath.lineTo(
+                shapePath.reset()
+                shapePath.moveTo(centerX + len * cosA, centerY + len * sinA)
+                shapePath.lineTo(
                     centerX + shoulderDist * cosA + halfW * perpX,
                     centerY + shoulderDist * sinA + halfW * perpY
                 )
-                handPath.lineTo(centerX - tailLen * cosA, centerY - tailLen * sinA)
-                handPath.lineTo(
+                shapePath.lineTo(centerX - tailLen * cosA, centerY - tailLen * sinA)
+                shapePath.lineTo(
                     centerX + shoulderDist * cosA - halfW * perpX,
                     centerY + shoulderDist * sinA - halfW * perpY
                 )
-                handPath.close()
-                canvas.drawPath(handPath, paint)
+                shapePath.close()
+                canvas.drawPath(shapePath, paint)
             }
             2 -> {
                 paint.style = Paint.Style.FILL
                 val dotRadius = (thickness * scale * 1.15f).coerceAtLeast(2.2f)
-                canvas.drawCircle(
-                    centerX + len * cosA,
-                    centerY + len * sinA,
-                    dotRadius,
-                    paint
-                )
+                canvas.drawCircle(centerX + len * cosA, centerY + len * sinA, dotRadius, paint)
             }
             3 -> {
                 paint.style = Paint.Style.STROKE
