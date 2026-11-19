@@ -40,10 +40,7 @@ class MainActivity : AppCompatActivity() {
         "Archi concentrici"
     )
 
-    private val tickShapes = arrayOf(
-        "Lineari",
-        "Tonde"
-    )
+    private val tickShapes = arrayOf("Lineari", "Tonde")
 
     private val colorPalette = listOf(
         "Bianco" to Color.WHITE,
@@ -65,152 +62,44 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("NotchClockPrefs", Context.MODE_PRIVATE)
 
         listOf(
-            R.id.cardStatus,
+            R.id.cardGeneral,
             R.id.cardPosition,
-            R.id.cardDigital,
-            R.id.cardHours,
-            R.id.cardMinutes,
-            R.id.cardSeconds,
-            R.id.cardTicks
+            R.id.cardSide,
+            R.id.cardClockStyle,
+            R.id.cardAdvancedHands
         ).forEach { styleCard(findViewById(it)) }
 
+        setupCollapsible(R.id.headerClockStyle, R.id.bodyClockStyle, R.id.arrowClockStyle)
+        setupCollapsible(R.id.headerAdvancedHands, R.id.bodyAdvancedHands, R.id.arrowAdvancedHands)
+
+        // 1. Generale
         switchEnable = findViewById(R.id.switchEnable)
-        val btnDialStyle = findViewById<Button>(R.id.btnDialStyle)
-        val btnHandStyle = findViewById<Button>(R.id.btnHandStyle)
-        val btnTickShape = findViewById<Button>(R.id.btnTickShape)
-
-        val tvX = findViewById<TextView>(R.id.tvValueX)
-        val tvY = findViewById<TextView>(R.id.tvValueY)
-        val tvSize = findViewById<TextView>(R.id.tvValueSize)
-        val seekBarX = findViewById<SeekBar>(R.id.seekBarX)
-        val seekBarY = findViewById<SeekBar>(R.id.seekBarY)
-        val seekBarSize = findViewById<SeekBar>(R.id.seekBarSize)
-        val btnResetPosition = findViewById<Button>(R.id.btnResetPosition)
-
-        val seekTicksLength = findViewById<SeekBar>(R.id.seekTicksLength)
-        val tvTicksLength = findViewById<TextView>(R.id.tvTicksLength)
-
-        fun refreshStyleButtons() {
-            val dIdx = prefs.getInt("dialStyle", 0).coerceIn(0, dialStyles.lastIndex)
-            val hIdx = prefs.getInt("handStyle", 1).coerceIn(0, handStyles.lastIndex)
-            val tIdx = prefs.getInt("tickShape", 0).coerceIn(0, tickShapes.lastIndex)
-            btnDialStyle.text = "Quadrante: ${dialStyles[dIdx]}"
-            btnHandStyle.text = "Lancette: ${handStyles[hIdx]}"
-            btnTickShape.text = "Forma tacche: ${tickShapes[tIdx]}"
-        }
-
-        refreshStyleButtons()
-
-        btnDialStyle.setOnClickListener {
-            val current = prefs.getInt("dialStyle", 0).coerceIn(0, dialStyles.lastIndex)
-            AlertDialog.Builder(this)
-                .setTitle("Scegli stile quadrante")
-                .setSingleChoiceItems(dialStyles, current) { dialog, which ->
-                    prefs.edit().putInt("dialStyle", which).apply()
-                    refreshStyleButtons()
-                    dialog.dismiss()
-                }
-                .show()
-        }
-
-        btnHandStyle.setOnClickListener {
-            val current = prefs.getInt("handStyle", 1).coerceIn(0, handStyles.lastIndex)
-            AlertDialog.Builder(this)
-                .setTitle("Scegli forma lancette")
-                .setSingleChoiceItems(handStyles, current) { dialog, which ->
-                    val editor = prefs.edit().putInt("handStyle", which)
-                    if (which == 2) {
-                        editor.putInt("tickShape", 0)
-                        val curTickLen = prefs.getInt("ticksLength", 18)
-                        if (curTickLen < 25) {
-                            editor.putInt("ticksLength", 26)
-                            seekTicksLength.progress = 26 - 5
-                            tvTicksLength.text = "26%"
-                        }
-                        Toast.makeText(
-                            this,
-                            "Tacche impostate su lineari lunghe per non confonderle con le lancette tonde",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    editor.apply()
-                    refreshStyleButtons()
-                    dialog.dismiss()
-                }
-                .show()
-        }
-
-        btnTickShape.setOnClickListener {
-            val current = prefs.getInt("tickShape", 0).coerceIn(0, tickShapes.lastIndex)
-            AlertDialog.Builder(this)
-                .setTitle("Scegli forma tacche")
-                .setSingleChoiceItems(tickShapes, current) { dialog, which ->
-                    val editor = prefs.edit().putInt("tickShape", which)
-                    if (which == 1 && prefs.getInt("handStyle", 1) == 2) {
-                        editor.putInt("handStyle", 1)
-                        Toast.makeText(
-                            this,
-                            "Lancette impostate 'A punta' per distinguerle dalle tacche tonde",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    editor.apply()
-                    refreshStyleButtons()
-                    dialog.dismiss()
-                }
-                .show()
-        }
-
-        // Posizione e dimensione orologio analogico
-        val initX = prefs.getInt("offsetX", 0)
-        val initY = prefs.getInt("offsetY", 0)
-        val initSize = prefs.getInt("size", 120)
-
-        seekBarX.max = 600
-        seekBarX.progress = initX + 300
-        tvX.text = "${initX} px"
-
-        seekBarY.max = 800
-        seekBarY.progress = initY + 300
-        tvY.text = "${initY} px"
-
-        seekBarSize.max = 260
-        seekBarSize.progress = (initSize - 40).coerceIn(0, 260)
-        tvSize.text = "${initSize} px"
-
         switchEnable.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 prefs.edit().putBoolean("isEnabled", true).apply()
-                if (hasOverlayPermission()) {
-                    startClockService()
-                } else {
-                    requestOverlayPermission()
-                }
+                if (hasOverlayPermission()) startClockService() else requestOverlayPermission()
             } else {
                 prefs.edit().putBoolean("isEnabled", false).apply()
                 stopClockService()
             }
         }
 
-        seekBarX.onUserChange { progress ->
-            val offsetX = progress - 300
-            tvX.text = "${offsetX} px"
-            prefs.edit().putInt("offsetX", offsetX).apply()
-        }
+        bindSwitch(R.id.switchLandscape, "landscapeEnabled", false)
+        bindSwitch(R.id.switchAnalog, "analogEnabled", true)
 
-        seekBarY.onUserChange { progress ->
-            val offsetY = progress - 300
-            tvY.text = "${offsetY} px"
-            prefs.edit().putInt("offsetY", offsetY).apply()
-        }
+        // 2. Posizione e diametro centrale
+        val tvX = findViewById<TextView>(R.id.tvValueX)
+        val tvY = findViewById<TextView>(R.id.tvValueY)
+        val tvSize = findViewById<TextView>(R.id.tvValueSize)
+        val seekBarX = findViewById<SeekBar>(R.id.seekBarX)
+        val seekBarY = findViewById<SeekBar>(R.id.seekBarY)
+        val seekBarSize = findViewById<SeekBar>(R.id.seekBarSize)
 
-        seekBarSize.onUserChange { progress ->
-            val size = progress + 40
-            tvSize.text = "${size} px"
-            prefs.edit().putInt("size", size).apply()
-        }
+        bindSlider("offsetX", 0, -300, 300, " px", seekBarX, tvX)
+        bindSlider("offsetY", 0, -300, 500, " px", seekBarY, tvY)
+        bindSlider("size", 120, 40, 300, " px", seekBarSize, tvSize)
 
-        btnResetPosition.setOnClickListener {
+        findViewById<Button>(R.id.btnResetPosition).setOnClickListener {
             seekBarX.progress = 300
             seekBarY.progress = 300
             seekBarSize.progress = 80
@@ -224,72 +113,101 @@ class MainActivity : AppCompatActivity() {
                 .apply()
         }
 
-        // Controlli NUMERI LATERALI (Ore SX, Minuti DX)
-        val switchDigital = findViewById<SwitchCompat>(R.id.switchDigital)
-        switchDigital.isChecked = prefs.getBoolean("digitalEnabled", true)
-        switchDigital.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("digitalEnabled", isChecked).apply()
+        // 3. Elementi laterali (Orario SX • Batteria DX)
+        bindSwitch(R.id.switchLeftTime, "leftTimeEnabled", true)
+        bindSwitch(R.id.switchRightBattery, "rightBatteryEnabled", true)
+        setupColorButton(findViewById(R.id.btnSideColor), "sideColor", Color.WHITE, "Colore caratteri e barretta")
+        bindSlider("sideDistance", 12, -20, 200, " px", findViewById(R.id.seekSideDistance), findViewById(R.id.tvSideDistance))
+        bindSlider("sideY", 42, 0, 500, " px", findViewById(R.id.seekSideY), findViewById(R.id.tvSideY))
+        bindSlider("sideSize", 14, 8, 48, "", findViewById(R.id.seekSideSize), findViewById(R.id.tvSideSize))
+        bindSlider("sideTransparency", 0, 0, 100, "%", findViewById(R.id.seekSideAlpha), findViewById(R.id.tvSideAlpha))
+
+        // 4. Stile orologio tondo
+        val btnDialStyle = findViewById<Button>(R.id.btnDialStyle)
+        val btnHandStyle = findViewById<Button>(R.id.btnHandStyle)
+        val btnTickShape = findViewById<Button>(R.id.btnTickShape)
+        val seekTicksLength = findViewById<SeekBar>(R.id.seekTicksLength)
+        val tvTicksLength = findViewById<TextView>(R.id.tvTicksLength)
+
+        fun refreshStyleButtons() {
+            val dIdx = prefs.getInt("dialStyle", 0).coerceIn(0, dialStyles.lastIndex)
+            val hIdx = prefs.getInt("handStyle", 1).coerceIn(0, handStyles.lastIndex)
+            val tIdx = prefs.getInt("tickShape", 0).coerceIn(0, tickShapes.lastIndex)
+            btnDialStyle.text = "Quadrante: ${dialStyles[dIdx]}"
+            btnHandStyle.text = "Lancette: ${handStyles[hIdx]}"
+            btnTickShape.text = "Forma tacche: ${tickShapes[tIdx]}"
+        }
+        refreshStyleButtons()
+
+        btnDialStyle.setOnClickListener {
+            showSingleChoice("Scegli stile quadrante", dialStyles, prefs.getInt("dialStyle", 0)) { which ->
+                prefs.edit().putInt("dialStyle", which).apply()
+                refreshStyleButtons()
+            }
         }
 
-        setupColorButton(findViewById(R.id.btnDigitalColor), "digitalColor", Color.WHITE, "Colore caratteri")
-        bindSlider("digitalDistance", 14, -20, 200, " px", findViewById(R.id.seekDigitalDistance), findViewById(R.id.tvDigitalDistance))
-        bindSlider("digitalY", 45, 0, 500, " px", findViewById(R.id.seekDigitalY), findViewById(R.id.tvDigitalY))
-        bindSlider("digitalSize", 22, 10, 72, "", findViewById(R.id.seekDigitalSize), findViewById(R.id.tvDigitalSize))
-        bindSlider("digitalTransparency", 0, 0, 100, "%", findViewById(R.id.seekDigitalAlpha), findViewById(R.id.tvDigitalAlpha))
+        btnHandStyle.setOnClickListener {
+            showSingleChoice("Scegli forma lancette", handStyles, prefs.getInt("handStyle", 1)) { which ->
+                val editor = prefs.edit().putInt("handStyle", which)
+                if (which == 2) {
+                    editor.putInt("tickShape", 0)
+                    if (prefs.getInt("ticksLength", 18) < 25) {
+                        editor.putInt("ticksLength", 26)
+                        seekTicksLength.progress = 26 - 5
+                        tvTicksLength.text = "26%"
+                    }
+                    Toast.makeText(
+                        this,
+                        "Tacche impostate su lineari lunghe per non confonderle con le lancette tonde",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                editor.apply()
+                refreshStyleButtons()
+            }
+        }
 
-        // Controlli ORE
+        btnTickShape.setOnClickListener {
+            showSingleChoice("Scegli forma tacche", tickShapes, prefs.getInt("tickShape", 0)) { which ->
+                val editor = prefs.edit().putInt("tickShape", which)
+                if (which == 1 && prefs.getInt("handStyle", 1) == 2) {
+                    editor.putInt("handStyle", 1)
+                    Toast.makeText(
+                        this,
+                        "Lancette impostate 'A punta' per distinguerle dalle tacche tonde",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                editor.apply()
+                refreshStyleButtons()
+            }
+        }
+
+        // 5. Dettagli lancette e tacche
         setupColorButton(findViewById(R.id.btnHourColor), "hourColor", Color.WHITE, "Colore Ore")
         bindSlider("hourLength", 50, 20, 95, "%", findViewById(R.id.seekHourLength), findViewById(R.id.tvHourLength))
         bindSlider("hourThickness", 8, 1, 20, "", findViewById(R.id.seekHourThickness), findViewById(R.id.tvHourThickness))
         bindSlider("hourTransparency", 0, 0, 100, "%", findViewById(R.id.seekHourAlpha), findViewById(R.id.tvHourAlpha))
 
-        // Controlli MINUTI
         setupColorButton(findViewById(R.id.btnMinuteColor), "minuteColor", Color.WHITE, "Colore Minuti")
         bindSlider("minuteLength", 75, 20, 95, "%", findViewById(R.id.seekMinuteLength), findViewById(R.id.tvMinuteLength))
         bindSlider("minuteThickness", 5, 1, 20, "", findViewById(R.id.seekMinuteThickness), findViewById(R.id.tvMinuteThickness))
         bindSlider("minuteTransparency", 0, 0, 100, "%", findViewById(R.id.seekMinuteAlpha), findViewById(R.id.tvMinuteAlpha))
 
-        // Controlli SECONDI
         setupColorButton(findViewById(R.id.btnSecondColor), "secondColor", Color.parseColor("#FF5252"), "Colore Secondi")
         bindSlider("secondLength", 88, 20, 100, "%", findViewById(R.id.seekSecondLength), findViewById(R.id.tvSecondLength))
         bindSlider("secondThickness", 3, 1, 20, "", findViewById(R.id.seekSecondThickness), findViewById(R.id.tvSecondThickness))
         bindSlider("secondTransparency", 0, 0, 100, "%", findViewById(R.id.seekSecondAlpha), findViewById(R.id.tvSecondAlpha))
 
-        // Controlli TACCHE
         setupColorButton(findViewById(R.id.btnTicksColor), "ticksColor", Color.parseColor("#9E9E9E"), "Colore Tacche")
         bindSlider("ticksLength", 18, 5, 45, "%", seekTicksLength, tvTicksLength)
         bindSlider("ticksThickness", 3, 1, 15, "", findViewById(R.id.seekTicksThickness), findViewById(R.id.tvTicksThickness))
         bindSlider("ticksTransparency", 0, 0, 100, "%", findViewById(R.id.seekTicksAlpha), findViewById(R.id.tvTicksAlpha))
 
-        // Ripristina tutti gli stili predefiniti
+        // Ripristina tutto
         findViewById<Button>(R.id.btnResetAll).setOnClickListener {
-            prefs.edit()
-                .putInt("dialStyle", 0)
-                .putInt("handStyle", 1)
-                .putInt("tickShape", 0)
-                .putBoolean("digitalEnabled", true)
-                .putInt("digitalColor", Color.WHITE)
-                .putInt("digitalDistance", 14)
-                .putInt("digitalY", 45)
-                .putInt("digitalSize", 22)
-                .putInt("digitalTransparency", 0)
-                .putInt("hourColor", Color.WHITE)
-                .putInt("minuteColor", Color.WHITE)
-                .putInt("secondColor", Color.parseColor("#FF5252"))
-                .putInt("ticksColor", Color.parseColor("#9E9E9E"))
-                .putInt("hourLength", 50)
-                .putInt("hourThickness", 8)
-                .putInt("hourTransparency", 0)
-                .putInt("minuteLength", 75)
-                .putInt("minuteThickness", 5)
-                .putInt("minuteTransparency", 0)
-                .putInt("secondLength", 88)
-                .putInt("secondThickness", 3)
-                .putInt("secondTransparency", 0)
-                .putInt("ticksLength", 18)
-                .putInt("ticksThickness", 3)
-                .putInt("ticksTransparency", 0)
-                .apply()
+            val wasEnabled = prefs.getBoolean("isEnabled", false)
+            prefs.edit().clear().putBoolean("isEnabled", wasEnabled).apply()
             recreate()
         }
     }
@@ -308,6 +226,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupCollapsible(headerId: Int, bodyId: Int, arrowId: Int) {
+        val header = findViewById<View>(headerId)
+        val body = findViewById<View>(bodyId)
+        val arrow = findViewById<TextView>(arrowId)
+        header.setOnClickListener {
+            val expand = body.visibility != View.VISIBLE
+            body.visibility = if (expand) View.VISIBLE else View.GONE
+            arrow.text = if (expand) "▲" else "▼"
+        }
+    }
+
+    private fun bindSwitch(viewId: Int, prefKey: String, defaultValue: Boolean) {
+        val sw = findViewById<SwitchCompat>(viewId)
+        sw.isChecked = prefs.getBoolean(prefKey, defaultValue)
+        sw.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(prefKey, isChecked).apply()
+        }
+    }
+
     private fun bindSlider(
         prefKey: String,
         defaultValue: Int,
@@ -322,11 +259,27 @@ class MainActivity : AppCompatActivity() {
         seekBar.progress = current - minValue
         valueText.text = "$current$suffix"
 
-        seekBar.onUserChange { progress ->
-            val value = progress + minValue
-            valueText.text = "$value$suffix"
-            prefs.edit().putInt(prefKey, value).apply()
-        }
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val value = progress + minValue
+                    valueText.text = "$value$suffix"
+                    prefs.edit().putInt(prefKey, value).apply()
+                }
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+    }
+
+    private fun showSingleChoice(title: String, items: Array<String>, current: Int, onSelected: (Int) -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(items, current.coerceIn(0, items.lastIndex)) { dialog, which ->
+                onSelected(which)
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun styleCard(view: View) {
@@ -386,47 +339,25 @@ class MainActivity : AppCompatActivity() {
 
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setAdapter(adapter) { _, which ->
-                onSelected(colorPalette[which].second)
-            }
+            .setAdapter(adapter) { _, which -> onSelected(colorPalette[which].second) }
             .show()
     }
 
-    private fun hasOverlayPermission(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
-    }
+    private fun hasOverlayPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
 
     private fun requestOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            startActivity(
-                Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
-                )
-            )
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
         }
     }
 
     private fun startClockService() {
         val intent = Intent(this, ClockService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
     }
 
     private fun stopClockService() {
         stopService(Intent(this, ClockService::class.java))
-    }
-
-    private inline fun SeekBar.onUserChange(crossinline action: (Int) -> Unit) {
-        setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) action(progress)
-            }
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
-        })
     }
 }
