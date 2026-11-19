@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -18,6 +19,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import kotlin.math.max
@@ -35,8 +37,8 @@ class ClockService : Service() {
 
     private val updateRunnable = object : Runnable {
         override fun run() {
-            if (!isScreenOn) return
-            if (::clockView.isInitialized && clockView.windowToken != null) {
+            if (!isScreenOn || !::clockView.isInitialized || clockView.visibility != View.VISIBLE) return
+            if (clockView.windowToken != null) {
                 clockView.invalidate()
             }
             val delay = 1000L - (System.currentTimeMillis() % 1000L)
@@ -57,8 +59,7 @@ class ClockService : Service() {
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOn = true
-                    handler.removeCallbacks(updateRunnable)
-                    handler.post(updateRunnable)
+                    restartTickerIfVisible()
                 }
             }
         }
@@ -105,8 +106,7 @@ class ClockService : Service() {
 
         calculateWindowBounds()
 
-        val added = runCatching { windowManager.addView(clockView, params) }.isSuccess
-        if (!added) {
+        if (runCatching { windowManager.addView(clockView, params) }.isFailure) {
             stopSelf()
             return
         }
@@ -123,7 +123,7 @@ class ClockService : Service() {
             registerReceiver(screenReceiver, screenFilter)
         }
 
-        handler.post(updateRunnable)
+        applyOrientationVisibility()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -131,36 +131,69 @@ class ClockService : Service() {
         return START_STICKY
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOrientationVisibility(newConfig.orientation)
+    }
+
+    private fun applyOrientationVisibility(orientation: Int = resources.configuration.orientation) {
+        if (!::prefs.isInitialized || !::clockView.isInitialized) return
+        val allowLandscape = prefs.getBoolean("landscapeEnabled", false)
+        val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
+        val shouldShow = !isLandscape || allowLandscape
+
+        clockView.visibility = if (shouldShow) View.VISIBLE else View.GONE
+        restartTickerIfVisible()
+    }
+
+    private fun restartTickerIfVisible() {
+        handler.removeCallbacks(updateRunnable)
+        if (isScreenOn && ::clockView.isInitialized && clockView.visibility == View.VISIBLE) {
+            handler.post(updateRunnable)
+        }
+    }
+
     private fun calculateWindowBounds() {
         val size = prefs.getInt("size", 120)
         val offsetX = prefs.getInt("offsetX", 0)
         val offsetY = prefs.getInt("offsetY", 0)
-        val digitalEnabled = prefs.getBoolean("digitalEnabled", true)
 
-        if (digitalEnabled) {
-            val digitalDistance = prefs.getInt("digitalDistance", 14)
-            val digitalSize = prefs.getInt("digitalSize", 22)
-            val digitalY = prefs.getInt("digitalY", 45)
-            val textSizePx = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP,
-                digitalSize.toFloat(),
-                resources.displayMetrics
-            )
+        val analogEnabled = prefs.getBoolean("analogEnabled", true)
+        val leftTimeEnabled = prefs.getBoolean("leftTimeEnabled", true)
+        val rightBatteryEnabled = prefs.getBoolean("rightBatteryEnabled", true)
+        val hasSideElements = leftTimeEnabled || rightBatteryEnabled
 
-            val halfSpanX = (size / 2f) + digitalDistance + (textSizePx * 2.2f) + 24f
-            val winTop = min(offsetY, (digitalY - textSizePx).toInt())
-            val winBottom = max(offsetY + size, (digitalY + textSizePx).toInt())
+        val sideDistance = prefs.getInt("sideDistance", 12)
+        val sideSize = prefs.getInt("sideSize", 14)
+        val sideY = prefs.getInt("sideY", 42)
+        val textSizePx = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            sideSize.toFloat(),
+            resources.displayMetrics
+        )
 
-            params.width = (halfSpanX * 2f).toInt().coerceAtLeast(size)
-            params.height = (winBottom - winTop).coerceAtLeast(size)
-            params.x = offsetX
-            params.y = winTop
-        } else {
-            params.width = size
-            params.height = size
-            params.x = offsetX
-            params.y = offsetY
+        val analogHalfW = if (analogEnabled) size / 2f else 0f
+        val edgeOffset = (size / 2f) + sideDistance
+        val leftHalfW = if (leftTimeEnabled) edgeOffset + (textSizePx * 1.8f) + 16f else 0f
+        val rightHalfW = if (rightBatteryEnabled) edgeOffset + (textSizePx * 2.9f) + 16f else 0f
+        val halfSpanX = max(analogHalfW, max(leftHalfW, rightHalfW)).coerceAtLeast(20f)
+
+        val sideHalfH = (textSizePx * 1.35f).toInt() + 8
+        val winTop = when {
+            analogEnabled && hasSideElements -> min(offsetY, sideY - sideHalfH)
+            hasSideElements -> sideY - sideHalfH
+            else -> offsetY
         }
+        val winBottom = when {
+            analogEnabled && hasSideElements -> max(offsetY + size, sideY + sideHalfH)
+            hasSideElements -> sideY + sideHalfH
+            else -> offsetY + size
+        }
+
+        params.width = (halfSpanX * 2f).toInt().coerceAtLeast(40)
+        params.height = (winBottom - winTop).coerceAtLeast(40)
+        params.x = offsetX
+        params.y = winTop
     }
 
     private fun updateViewParams() {
@@ -168,6 +201,7 @@ class ClockService : Service() {
 
         calculateWindowBounds()
         clockView.reloadPreferences()
+        applyOrientationVisibility()
 
         if (clockView.windowToken != null) {
             runCatching { windowManager.updateViewLayout(clockView, params) }
